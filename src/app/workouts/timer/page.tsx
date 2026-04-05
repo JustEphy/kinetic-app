@@ -112,7 +112,7 @@ export default function TimerPage() {
   const isWorkInterval = currentInterval.type === 'work' || currentInterval.type === 'warmup';
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center relative overflow-hidden px-6">
+    <div className="min-h-screen flex flex-col items-center justify-center relative overflow-hidden px-6" style={{ paddingTop: 'max(2rem, env(safe-area-inset-top))' }}>
       {/* Ambient Glows */}
       <div className="absolute top-1/4 -left-20 w-96 h-96 bg-primary/5 rounded-full blur-[100px]"></div>
       <div className="absolute bottom-1/4 -right-20 w-96 h-96 bg-secondary/5 rounded-full blur-[100px]"></div>

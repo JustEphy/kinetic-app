@@ -145,6 +145,35 @@
   background: var(--theme-primary, #ff8aa9);
 }
 
+/* Mobile Touch Optimizations */
+html {
+  /* Prevent double-tap zoom on iOS */
+  touch-action: manipulation;
+  /* Support for safe areas (iPhone notch, etc) */
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+body {
+  /* Prevent text selection on buttons and controls */
+  -webkit-user-select: none;
+  user-select: none;
+  /* Prevent pull-to-refresh on mobile */
+  overscroll-behavior: none;
+}
+
+/* Allow text selection for readable content */
+p, span, div[contenteditable], input, textarea {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/* Prevent zoom on button interactions */
+button, a {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
 /* Base Body Styles */
 body {
   background-color: var(--theme-background, #0c0e12);

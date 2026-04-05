@@ -24,7 +24,10 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
   themeColor: "#0c0e12",
+  viewportFit: "cover", // For iPhone notch/safe area
 };
 
 export default function RootLayout({
@@ -45,7 +48,7 @@ export default function RootLayout({
           <AuthProvider>
             <WorkoutProvider>
               <Navbar />
-              <main className="flex-1 pt-24 md:pt-20">
+              <main className="flex-1 pt-24 md:pt-20" style={{ paddingTop: 'max(6rem, calc(5rem + env(safe-area-inset-top)))' }}>
                 {children}
               </main>
               <Footer />

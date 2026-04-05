@@ -19,7 +19,7 @@ export default function Navbar() {
   };
 
   return (
-    <nav className="fixed top-0 w-full z-50 bg-background/80 backdrop-blur-xl shadow-md">
+    <nav className="fixed top-0 w-full z-50 bg-background/80 backdrop-blur-xl shadow-md" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
       <div className="flex justify-between items-center px-8 py-4 max-w-full mx-auto">
         {/* Logo */}
         <Link href="/" className="text-2xl font-black italic tracking-tighter text-primary">
