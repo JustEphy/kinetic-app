@@ -48,7 +48,7 @@ export default function RootLayout({
           <AuthProvider>
             <WorkoutProvider>
               <Navbar />
-              <main className="flex-1 pt-24 md:pt-20" style={{ paddingTop: 'max(6rem, calc(5rem + env(safe-area-inset-top)))' }}>
+              <main className="flex-1 pt-40 md:pt-20">
                 {children}
               </main>
               <Footer />
