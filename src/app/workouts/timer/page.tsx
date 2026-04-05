@@ -112,13 +112,13 @@ export default function TimerPage() {
   const isWorkInterval = currentInterval.type === 'work' || currentInterval.type === 'warmup';
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center relative overflow-hidden px-6" style={{ paddingTop: 'max(2rem, env(safe-area-inset-top))' }}>
+    <div className="min-h-screen flex flex-col items-center justify-start relative overflow-hidden px-6 pt-32 md:pt-24">
       {/* Ambient Glows */}
       <div className="absolute top-1/4 -left-20 w-96 h-96 bg-primary/5 rounded-full blur-[100px]"></div>
       <div className="absolute bottom-1/4 -right-20 w-96 h-96 bg-secondary/5 rounded-full blur-[100px]"></div>
 
-      {/* Session Progress Bar */}
-      <div className="w-full max-w-md mb-12 flex flex-col items-center gap-3">
+      {/* Session Progress Bar - Part of page flow */}
+      <div className="w-full max-w-md mb-8 flex flex-col items-center gap-3">
         <div className="flex justify-between w-full px-1">
           <span className="text-secondary font-label text-sm uppercase tracking-widest font-bold">
             Session Progress
