@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Lexend } from "next/font/google";
 import "./globals.css";
 import ChromeShell from "@/components/ChromeShell";
+import DisclaimerModal from "@/components/DisclaimerModal";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { WorkoutProvider } from "@/contexts/WorkoutContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
@@ -46,6 +47,7 @@ export default function RootLayout({
         <ThemeProvider>
           <AuthProvider>
             <WorkoutProvider>
+              <DisclaimerModal />
               <ChromeShell>
                 {children}
               </ChromeShell>

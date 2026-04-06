@@ -12,13 +12,13 @@ export default function Footer() {
         {/* Links */}
         <div className="flex flex-wrap justify-center gap-8">
           <Link
-            href="/privacy"
+            href="/legal/privacy"
             className="font-body text-xs uppercase tracking-widest text-slate-500 hover:text-primary transition-opacity duration-300"
           >
             Privacy
           </Link>
           <Link
-            href="/terms"
+            href="/legal/terms"
             className="font-body text-xs uppercase tracking-widest text-slate-500 hover:text-primary transition-opacity duration-300"
           >
             Terms
@@ -39,7 +39,7 @@ export default function Footer() {
 
         {/* Copyright */}
         <p className="font-body text-xs uppercase tracking-widest text-slate-500">
-          © 2024 KINETIC. ENGINEERED FOR PERFORMANCE.
+          © 2026 KINETIC. ENGINEERED FOR PERFORMANCE.
         </p>
       </div>
     </footer>

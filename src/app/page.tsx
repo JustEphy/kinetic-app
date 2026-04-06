@@ -118,8 +118,41 @@ export default function RootPage() {
       </div>
 
       {/* Footer */}
-      <footer className="py-6 text-center text-on-surface-variant text-sm">
-        <p>© 2024 KINETIC. Train smarter.</p>
+      <footer className="py-6 border-t border-surface-container">
+        <div className="flex flex-col items-center gap-4">
+          {/* Links */}
+          <div className="flex flex-wrap justify-center gap-6 text-xs">
+            <Link
+              href="/legal/privacy"
+              className="text-slate-500 hover:text-primary transition-colors"
+            >
+              Privacy
+            </Link>
+            <Link
+              href="/legal/terms"
+              className="text-slate-500 hover:text-primary transition-colors"
+            >
+              Terms
+            </Link>
+            <Link
+              href="/support"
+              className="text-slate-500 hover:text-primary transition-colors"
+            >
+              Support
+            </Link>
+            <Link
+              href="/contact"
+              className="text-slate-500 hover:text-primary transition-colors"
+            >
+              Contact
+            </Link>
+          </div>
+          
+          {/* Copyright */}
+          <p className="text-center text-on-surface-variant text-xs">
+            © 2026 KINETIC. Train smarter.
+          </p>
+        </div>
       </footer>
     </div>
   );
