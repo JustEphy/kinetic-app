@@ -4,7 +4,7 @@ import { usePathname } from 'next/navigation';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 
-const NO_CHROME_PREFIXES = ['/guest-timer'];
+const NO_CHROME_PREFIXES = ['/guest-timer', '/workouts/timer'];
 const NO_CHROME_EXACT = ['/', '/auth/signin'];
 
 export default function ChromeShell({ children }: { children: React.ReactNode }) {

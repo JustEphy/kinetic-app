@@ -55,6 +55,11 @@ export default function WorkoutIntervalTimerView({
 
   return (
     <div className={`min-h-screen flex flex-col items-center justify-start relative overflow-hidden px-6 ${topPaddingClass}`}>
+      <div className="w-full max-w-md flex justify-center mb-2">
+        <div className="text-primary font-black italic tracking-tighter text-xl">
+          KINETIC
+        </div>
+      </div>
       <div className="absolute top-1/4 -left-20 w-96 h-96 bg-primary/5 rounded-full blur-[100px]"></div>
       <div className="absolute bottom-1/4 -right-20 w-96 h-96 bg-secondary/5 rounded-full blur-[100px]"></div>
 
