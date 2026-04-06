@@ -1,12 +1,14 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useWorkout } from '@/contexts/WorkoutContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { generateWorkoutFromPrompt, presets } from '@/lib/ai';
 import { WorkoutInterval, WorkoutPreset } from '@/types';
 import { generateId } from '@/lib/db';
+import PresetsModal from '@/components/PresetsModal';
+import { useSpeechToText } from '@/hooks/useSpeechToText';
 
 type IntervalMode = 'simple' | 'advanced';
 
@@ -15,7 +17,7 @@ const DURATION_PRESETS = [15, 30, 45, 60, 90, 120];
 export default function WorkoutsPage() {
   const router = useRouter();
   const { workout, setWorkout, startWorkout } = useWorkout();
-  const { workoutPresets, saveWorkoutPreset, deleteWorkoutPreset, user } = useAuth();
+  const { workoutPresets, saveWorkoutPreset } = useAuth();
   
   const [aiPrompt, setAiPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
@@ -35,6 +37,11 @@ export default function WorkoutsPage() {
   const [presetName, setPresetName] = useState('');
   const [presetDescription, setPresetDescription] = useState('');
   const [editingPresetId, setEditingPresetId] = useState<string | null>(null);
+  const [presetError, setPresetError] = useState<string | null>(null);
+  const [isPresetsModalOpen, setIsPresetsModalOpen] = useState(false);
+  const { isSupported: speechSupported, isListening, error: speechError, toggleListening } = useSpeechToText(
+    (text) => setAiPrompt(text)
+  );
 
   const handleAIGenerate = async () => {
     if (!aiPrompt.trim()) return;
@@ -148,8 +155,18 @@ export default function WorkoutsPage() {
     setIntervalMode('advanced');
   };
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const presetId = new URLSearchParams(window.location.search).get('preset');
+    if (!presetId || !workoutPresets.length) return;
+    const preset = workoutPresets.find((p) => p.id === presetId);
+    if (!preset) return;
+    handleLoadSavedPreset(preset);
+  }, [workoutPresets]);
+
   const handleSaveAsPreset = async () => {
     if (!presetName.trim()) return;
+    setPresetError(null);
     
     const currentIntervals = intervalMode === 'simple' 
       ? generateSimpleIntervals()
@@ -159,18 +176,23 @@ export default function WorkoutsPage() {
     const actualDurationSeconds = currentIntervals.reduce((sum, i) => sum + i.duration, 0);
     const actualDurationMinutes = Math.ceil(actualDurationSeconds / 60);
     
-    await saveWorkoutPreset({
-      ...(editingPresetId ? { id: editingPresetId } : {}),
-      name: presetName,
-      description: presetDescription || undefined,
-      duration: actualDurationMinutes,
-      intervals: currentIntervals,
-    });
-    
-    setShowSavePreset(false);
-    setEditingPresetId(null);
-    setPresetName('');
-    setPresetDescription('');
+    try {
+      await saveWorkoutPreset({
+        ...(editingPresetId ? { id: editingPresetId } : {}),
+        name: presetName,
+        description: presetDescription || undefined,
+        duration: actualDurationMinutes,
+        intervals: currentIntervals,
+      });
+      
+      setShowSavePreset(false);
+      setEditingPresetId(null);
+      setPresetName('');
+      setPresetDescription('');
+    } catch (error) {
+      console.error('Preset save error:', error);
+      setPresetError('Could not save preset. Please try again.');
+    }
   };
 
   const generateSimpleIntervals = (): WorkoutInterval[] => {
@@ -268,6 +290,17 @@ export default function WorkoutsPage() {
                 placeholder="e.g., 60 min workout with 1 min work / 30 sec rest..."
                 className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-full pl-6 pr-14 py-4 text-on-surface focus:ring-2 focus:ring-secondary/50 focus:border-secondary/50 transition-all placeholder:text-on-surface-variant/40 text-sm"
               />
+              <button
+                type="button"
+                onClick={toggleListening}
+                className={`absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-full transition-colors ${
+                  isListening ? 'bg-secondary text-on-secondary-fixed' : 'text-secondary hover:bg-secondary/10'
+                } ${!speechSupported ? 'opacity-40 cursor-not-allowed' : ''}`}
+                disabled={!speechSupported}
+                title={speechSupported ? 'Speak your workout prompt' : 'Speech input not supported'}
+              >
+                <span className="material-symbols-outlined text-sm">mic</span>
+              </button>
             </div>
             <button
               onClick={handleAIGenerate}
@@ -278,6 +311,7 @@ export default function WorkoutsPage() {
               <span className="material-symbols-outlined text-sm">bolt</span>
             </button>
           </div>
+          {speechError && <p className="mt-2 text-xs text-error">{speechError}</p>}
           
           {/* Quick Presets */}
           <div className="flex flex-wrap gap-2 mt-4">
@@ -516,14 +550,14 @@ export default function WorkoutsPage() {
                     </div>
                     <div className="flex items-center gap-2">
                       <button
-                        onClick={() => handleUpdateInterval(interval.id, { duration: Math.max(5, interval.duration - 15) })}
+                        onClick={() => handleUpdateInterval(interval.id, { duration: Math.max(5, interval.duration - 5) })}
                         className="w-6 h-6 rounded bg-surface-container-high hover:bg-surface-container-highest flex items-center justify-center text-xs"
                       >
                         -
                       </button>
                       <span className="text-sm font-bold w-14 text-center">{formatTime(interval.duration)}</span>
                       <button
-                        onClick={() => handleUpdateInterval(interval.id, { duration: interval.duration + 15 })}
+                        onClick={() => handleUpdateInterval(interval.id, { duration: interval.duration + 5 })}
                         className="w-6 h-6 rounded bg-surface-container-high hover:bg-surface-container-highest flex items-center justify-center text-xs"
                       >
                         +
@@ -617,11 +651,11 @@ export default function WorkoutsPage() {
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-on-surface-variant">Workout Blocks</span>
-                  <span className="text-primary font-bold">{workoutBlockCount} ({Math.ceil(workSeconds / 60)} min)</span>
+                  <span className="text-primary font-bold">{workoutBlockCount} ({formatDurationWords(workSeconds)})</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-on-surface-variant">Rest Blocks</span>
-                  <span className="text-secondary font-bold">{restBlockCount} ({Math.ceil(restSeconds / 60)} min)</span>
+                  <span className="text-secondary font-bold">{restBlockCount} ({formatDurationWords(restSeconds)})</span>
                 </div>
               </div>
               
@@ -654,59 +688,24 @@ export default function WorkoutsPage() {
             {/* Save as Preset Button */}
              <button
                onClick={() => {
-                 setEditingPresetId(null);
-                 setPresetName(workoutName || '');
-                 setShowSavePreset(true);
-               }}
+                  setEditingPresetId(null);
+                  setPresetName(workoutName || '');
+                  setPresetError(null);
+                  setShowSavePreset(true);
+                }}
               className="w-full py-3 rounded-full bg-surface-container-high text-on-surface-variant text-sm font-bold hover:bg-surface-container-highest transition-colors flex items-center justify-center gap-2"
             >
               <span className="material-symbols-outlined text-sm">bookmark_add</span>
               Save as Preset
             </button>
             
-            {/* Saved Presets */}
-            {workoutPresets && workoutPresets.length > 0 && (
-              <div className="mt-4">
-                <h4 className="text-xs font-black uppercase tracking-widest text-on-surface-variant mb-3">
-                  My Presets
-                </h4>
-                <div className="space-y-2 max-h-48 overflow-y-auto">
-                  {workoutPresets.map(preset => (
-                    <div
-                      key={preset.id}
-                      className="flex items-center justify-between p-3 rounded-lg bg-surface-container-high hover:bg-surface-container-highest transition-colors group"
-                    >
-                      <button
-                        onClick={() => handleLoadSavedPreset(preset)}
-                        className="flex-1 text-left"
-                      >
-                        <span className="text-on-surface text-sm font-medium">{preset.name}</span>
-                        <span className="text-on-surface-variant text-xs ml-2">{preset.duration} min</span>
-                      </button>
-                      <button
-                        onClick={() => {
-                          setEditingPresetId(preset.id);
-                          setPresetName(preset.name);
-                          setPresetDescription(preset.description || '');
-                          setShowSavePreset(true);
-                        }}
-                        className="text-on-surface-variant hover:text-primary opacity-0 group-hover:opacity-100 transition-all p-1"
-                        title="Edit preset"
-                      >
-                        <span className="material-symbols-outlined text-sm">edit</span>
-                      </button>
-                      <button
-                        onClick={() => deleteWorkoutPreset(preset.id)}
-                        className="text-on-surface-variant hover:text-error opacity-0 group-hover:opacity-100 transition-all p-1"
-                        title="Delete preset"
-                      >
-                        <span className="material-symbols-outlined text-sm">delete</span>
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+            <button
+              onClick={() => setIsPresetsModalOpen(true)}
+              className="w-full mt-3 py-2.5 rounded-full border border-secondary/40 text-secondary text-xs font-bold tracking-widest uppercase hover:bg-secondary/10 transition-colors flex items-center justify-center gap-2"
+            >
+              <span className="material-symbols-outlined text-sm">bookmarks</span>
+              View All Presets
+            </button>
           </div>
         </div>
       </div>
@@ -759,12 +758,18 @@ export default function WorkoutsPage() {
                 <span className="font-medium">Duration:</span> {Math.ceil(totalSeconds / 60)} minutes<br />
                 <span className="font-medium">Intervals:</span> {intervalMode === 'simple' ? numSimpleIntervals : intervals.length}
               </div>
+              {presetError && (
+                <div className="rounded-lg border border-error/40 bg-error/10 px-3 py-2 text-sm text-error">
+                  {presetError}
+                </div>
+              )}
             </div>
             <div className="flex gap-3 mt-6">
               <button
                 onClick={() => {
                   setShowSavePreset(false);
                   setEditingPresetId(null);
+                  setPresetError(null);
                 }}
                 className="flex-1 py-3 rounded-full bg-surface-container text-on-surface-variant font-bold hover:bg-surface-container-high transition-colors"
               >
@@ -781,6 +786,7 @@ export default function WorkoutsPage() {
           </div>
         </div>
       )}
+      <PresetsModal isOpen={isPresetsModalOpen} onClose={() => setIsPresetsModalOpen(false)} />
     </div>
   );
 }
@@ -789,4 +795,10 @@ function formatTime(seconds: number): string {
   const mins = Math.floor(seconds / 60);
   const secs = seconds % 60;
   return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+}
+
+function formatDurationWords(totalSeconds: number): string {
+  const mins = Math.floor(totalSeconds / 60);
+  const secs = totalSeconds % 60;
+  return `${mins}min ${secs}sec`;
 }

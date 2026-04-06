@@ -10,6 +10,7 @@ interface WorkoutIntervalTimerViewProps {
   currentInterval: WorkoutInterval;
   nextInterval: WorkoutInterval | null;
   isPaused: boolean;
+  lastTransitionAt?: number;
   onReset: () => void;
   onPauseResume: () => void;
   onEnd: () => void;
@@ -25,6 +26,7 @@ export default function WorkoutIntervalTimerView({
   currentInterval,
   nextInterval,
   isPaused,
+  lastTransitionAt,
   onReset,
   onPauseResume,
   onEnd,
@@ -49,6 +51,7 @@ export default function WorkoutIntervalTimerView({
 
   const strokeOffset = circumference * (1 - actualProgress / 100);
   const isWorkInterval = currentInterval.type === 'work' || currentInterval.type === 'warmup';
+  const showTransitionCue = Boolean(lastTransitionAt) && Date.now() - (lastTransitionAt ?? 0) < 1400;
 
   return (
     <div className={`min-h-screen flex flex-col items-center justify-start relative overflow-hidden px-6 ${topPaddingClass}`}>
@@ -122,6 +125,11 @@ export default function WorkoutIntervalTimerView({
               {intervalRemainingTime >= 60 ? 'MINUTES' : 'SECONDS'}
             </span>
           </div>
+          {showTransitionCue && (
+            <div className="absolute -bottom-8 text-xs font-black tracking-widest uppercase text-secondary animate-pulse">
+              Block Changed
+            </div>
+          )}
         </div>
 
         <div className="flex flex-wrap justify-center gap-4 mt-4">

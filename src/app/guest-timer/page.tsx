@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { audioManager, haptics } from '@/lib/audio';
+import { audioManager, haptics, notify } from '@/lib/audio';
 import WorkoutIntervalTimerView from '@/components/WorkoutIntervalTimerView';
 import { WorkoutInterval } from '@/types';
 import { generateId } from '@/lib/db';
@@ -49,6 +49,7 @@ export default function GuestTimerPage() {
   const [currentIntervalIndex, setCurrentIntervalIndex] = useState(0);
   const [intervalElapsed, setIntervalElapsed] = useState(0);
   const [totalElapsed, setTotalElapsed] = useState(0);
+  const [lastTransitionAt, setLastTransitionAt] = useState(0);
   const intervalTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
@@ -229,6 +230,7 @@ export default function GuestTimerPage() {
     setIsSetup(false);
     setIsIntervalRunning(true);
     setIsPaused(false);
+    void notify('work', { sound: true, haptic: true });
   };
 
   useEffect(() => {
@@ -239,14 +241,27 @@ export default function GuestTimerPage() {
           const newElapsed = prev + 1;
           const current = intervals[currentIntervalIndex];
           if (!current) return prev;
+
+          const timeRemaining = current.duration - newElapsed;
+          if (timeRemaining >= 1 && timeRemaining <= 5) {
+            void notify('countdown', { sound: true, haptic: true });
+          }
+
           if (newElapsed >= current.duration) {
-            audioManager.playSound('work');
+            void notify('trill', { sound: true, haptic: true });
             if (currentIntervalIndex < intervals.length - 1) {
               setCurrentIntervalIndex((i) => i + 1);
+              setLastTransitionAt(Date.now());
               setTotalElapsed((t) => t + current.duration);
+              const next = intervals[currentIntervalIndex + 1];
+              if (next?.type === 'work' || next?.type === 'warmup') {
+                void notify('work', { sound: true, haptic: true });
+              } else {
+                void notify('rest', { sound: true, haptic: true });
+              }
               return 0;
             }
-            audioManager.playSound('complete');
+            void notify('complete', { sound: true, haptic: true });
             setIsIntervalRunning(false);
             setTotalElapsed((t) => t + current.duration);
             return current.duration;
@@ -278,9 +293,17 @@ export default function GuestTimerPage() {
       if (!current) return;
       setTotalElapsed((prev) => prev + current.duration);
       setCurrentIntervalIndex((i) => i + 1);
+      setLastTransitionAt(Date.now());
       setIntervalElapsed(0);
+      const next = intervals[currentIntervalIndex + 1];
+      if (next?.type === 'work' || next?.type === 'warmup') {
+        void notify('work', { sound: true, haptic: true });
+      } else {
+        void notify('rest', { sound: true, haptic: true });
+      }
     } else {
       setIsIntervalRunning(false);
+      void notify('complete', { sound: true, haptic: true });
     }
   };
 
@@ -573,11 +596,11 @@ export default function GuestTimerPage() {
                             <input type="text" value={interval.name} onChange={(e) => handleUpdateInterval(interval.id, { name: e.target.value })} className="bg-transparent text-on-surface font-semibold w-full focus:outline-none" />
                           </div>
                           <div className="flex items-center gap-2">
-                            <button onClick={() => handleUpdateInterval(interval.id, { duration: Math.max(5, interval.duration - 15) })} className="w-6 h-6 rounded bg-surface-container-high hover:bg-surface-container-highest flex items-center justify-center text-xs">-</button>
+                            <button onClick={() => handleUpdateInterval(interval.id, { duration: Math.max(5, interval.duration - 5) })} className="w-6 h-6 rounded bg-surface-container-high hover:bg-surface-container-highest flex items-center justify-center text-xs">-</button>
                             <span className="text-sm font-bold w-14 text-center">{formatTime(interval.duration)}</span>
-                            <button onClick={() => handleUpdateInterval(interval.id, { duration: interval.duration + 15 })} className="w-6 h-6 rounded bg-surface-container-high hover:bg-surface-container-highest flex items-center justify-center text-xs">+</button>
+                            <button onClick={() => handleUpdateInterval(interval.id, { duration: interval.duration + 5 })} className="w-6 h-6 rounded bg-surface-container-high hover:bg-surface-container-highest flex items-center justify-center text-xs">+</button>
                           </div>
-                          <button onClick={() => handleRemoveInterval(interval.id)} className="text-on-surface-variant hover:text-error transition-colors opacity-0 group-hover:opacity-100">
+                          <button onClick={() => handleRemoveInterval(interval.id)} className="text-on-surface-variant hover:text-error transition-colors opacity-100">
                             <span className="material-symbols-outlined text-sm">close</span>
                           </button>
                         </div>
@@ -622,8 +645,8 @@ export default function GuestTimerPage() {
                     <div className="space-y-4">
                       <div className="flex justify-between items-center"><span className="text-on-surface-variant">Target Duration</span><span className="text-on-surface-variant">{totalMinutes} min</span></div>
                       <div className="flex justify-between items-center"><span className="text-on-surface-variant">Actual Time</span><span className={`font-bold ${hasDurationMismatch ? (durationDiff > 0 ? 'text-error' : 'text-warning') : 'text-secondary'}`}>{formatTime(totalSeconds)}</span></div>
-                      <div className="flex justify-between items-center"><span className="text-on-surface-variant">Workout Blocks</span><span className="text-primary font-bold">{workoutBlockCount} workout blocks : ({formatDurationWords(workSeconds)})</span></div>
-                      <div className="flex justify-between items-center"><span className="text-on-surface-variant">Rest Blocks</span><span className="text-secondary font-bold">{restBlockCount} rest blocks : ({formatDurationWords(restSeconds)})</span></div>
+                      <div className="flex justify-between items-center"><span className="text-on-surface-variant">Workout Blocks</span><span className="text-primary font-bold">{workoutBlockCount} ({formatDurationWords(workSeconds)})</span></div>
+                      <div className="flex justify-between items-center"><span className="text-on-surface-variant">Rest Blocks</span><span className="text-secondary font-bold">{restBlockCount} ({formatDurationWords(restSeconds)})</span></div>
                     </div>
                     {hasDurationMismatch && (
                       <div className={`mt-4 p-3 rounded-lg ${durationDiff > 0 ? 'bg-error/10 border border-error/30' : 'bg-warning/10 border border-warning/30'}`}>
@@ -669,6 +692,7 @@ export default function GuestTimerPage() {
             currentInterval={currentInterval}
             nextInterval={nextInterval}
             isPaused={isPaused}
+            lastTransitionAt={lastTransitionAt}
             onReset={resetInterval}
             onPauseResume={() => setIsPaused((v) => !v)}
             onEnd={resetInterval}
@@ -712,6 +736,7 @@ function NumberInput({
           className="number-picker relative h-24 overflow-y-auto rounded-lg bg-surface-container-high snap-y snap-mandatory"
         >
           <div className="pointer-events-none sticky top-8 h-8 border-y border-primary/30 bg-primary/10 z-10" />
+          <div className="h-8 shrink-0" />
           {wheelValues.map((item) => (
             <button
               key={item}
@@ -725,6 +750,7 @@ function NumberInput({
               {item.toString().padStart(2, '0')}
             </button>
           ))}
+          <div className="h-8 shrink-0" />
         </div>
       </div>
       <p className="text-xs uppercase tracking-widest text-on-surface-variant">{label}</p>

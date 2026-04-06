@@ -7,6 +7,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { generateWorkoutFromPrompt } from '@/lib/ai';
 import { useWorkout } from '@/contexts/WorkoutContext';
 import TimeAgo from '@/components/TimeAgo';
+import PresetsModal from '@/components/PresetsModal';
+import { useSpeechToText } from '@/hooks/useSpeechToText';
 
 export default function HomePage() {
   const router = useRouter();
@@ -14,6 +16,10 @@ export default function HomePage() {
   const { setWorkout } = useWorkout();
   const [aiPrompt, setAiPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isPresetsModalOpen, setIsPresetsModalOpen] = useState(false);
+  const { isSupported: speechSupported, isListening, error: speechError, toggleListening } = useSpeechToText(
+    (text) => setAiPrompt(text)
+  );
 
   // Redirect to landing if not authenticated
   useEffect(() => {
@@ -86,6 +92,13 @@ export default function HomePage() {
               <span className="material-symbols-outlined">architecture</span>
               Workout Builder
             </Link>
+            <button
+              onClick={() => setIsPresetsModalOpen(true)}
+              className="border border-primary/40 text-primary font-bold px-8 py-4 rounded-full flex items-center gap-3 hover:bg-primary/10 transition-all duration-300"
+            >
+              <span className="material-symbols-outlined">bookmarks</span>
+              My Presets
+            </button>
           </div>
         </div>
       </section>
@@ -120,7 +133,14 @@ export default function HomePage() {
                   className="w-full bg-surface-container-highest border-none rounded-full py-4 pl-6 pr-24 text-on-surface placeholder:text-on-surface-variant focus:ring-2 focus:ring-secondary/50 transition-all"
                 />
                 <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
-                  <button className="p-2 hover:bg-secondary/10 rounded-full text-secondary transition-colors">
+                  <button
+                    onClick={toggleListening}
+                    className={`p-2 rounded-full transition-colors ${
+                      isListening ? 'bg-secondary text-on-secondary-fixed' : 'hover:bg-secondary/10 text-secondary'
+                    } ${!speechSupported ? 'opacity-40 cursor-not-allowed' : ''}`}
+                    disabled={!speechSupported}
+                    title={speechSupported ? 'Speak your workout prompt' : 'Speech input not supported'}
+                  >
                     <span className="material-symbols-outlined">mic</span>
                   </button>
                   <button
@@ -134,6 +154,7 @@ export default function HomePage() {
                   </button>
                 </div>
               </div>
+              {speechError && <p className="mt-2 text-xs text-error">{speechError}</p>}
             </div>
           </div>
         </div>
@@ -250,6 +271,7 @@ export default function HomePage() {
           <span className="material-symbols-outlined text-white text-3xl">psychology</span>
         </button>
       </div>
+      <PresetsModal isOpen={isPresetsModalOpen} onClose={() => setIsPresetsModalOpen(false)} />
     </div>
   );
 }

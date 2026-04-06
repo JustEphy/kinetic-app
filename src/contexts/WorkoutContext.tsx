@@ -24,6 +24,7 @@ interface WorkoutContextType {
   // Settings
   soundEnabled: boolean;
   hapticEnabled: boolean;
+  lastTransitionAt: number;
   
   // Actions
   setWorkout: (workout: Workout) => void;
@@ -49,6 +50,7 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
   const [currentIntervalIndex, setCurrentIntervalIndex] = useState(0);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [hapticEnabled, setHapticEnabled] = useState(true);
+  const [lastTransitionAt, setLastTransitionAt] = useState(0);
   
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const lastTickRef = useRef<number>(0);
@@ -125,6 +127,7 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
         
         // Next interval
         setCurrentIntervalIndex(nextIdx);
+        setLastTransitionAt(Date.now());
         const next = workout.intervals[nextIdx];
         
         // Play appropriate sound
@@ -259,6 +262,7 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
     
     setCurrentIntervalIndex(nextIdx);
     setIntervalElapsedTime(0);
+    setLastTransitionAt(Date.now());
     
     const next = workout.intervals[nextIdx];
     if (next.type === 'work' || next.type === 'warmup') {
@@ -282,6 +286,7 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
     intervalProgress,
     soundEnabled,
     hapticEnabled,
+    lastTransitionAt,
     setWorkout,
     startWorkout,
     pauseWorkout,

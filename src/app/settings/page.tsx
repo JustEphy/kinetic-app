@@ -4,6 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { themeList } from '@/lib/themes';
 import { useState, useEffect } from 'react';
+import { haptics } from '@/lib/audio';
 
 export default function SettingsPage() {
   const { settings, updateSettings } = useAuth();
@@ -20,7 +21,13 @@ export default function SettingsPage() {
 
   const handleToggle = (key: keyof typeof localSettings) => {
     if (typeof localSettings[key] === 'boolean') {
-      setLocalSettings(prev => ({ ...prev, [key]: !prev[key] }));
+      setLocalSettings(prev => {
+        const nextValue = !prev[key];
+        if (key === 'hapticEnabled' && nextValue) {
+          haptics.doubleTap();
+        }
+        return { ...prev, [key]: nextValue };
+      });
     }
   };
 

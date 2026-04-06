@@ -1,7 +1,9 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import PresetsModal from '@/components/PresetsModal';
 
 const navLinks = [
   { href: '/home', label: 'Home' },
@@ -12,6 +14,7 @@ const navLinks = [
 
 export default function Navbar() {
   const pathname = usePathname();
+  const [isPresetsModalOpen, setIsPresetsModalOpen] = useState(false);
 
   const isActive = (href: string) => {
     if (href === '/home') return pathname === '/home';
@@ -45,6 +48,14 @@ export default function Navbar() {
 
         {/* Settings Button */}
         <div className="flex items-center gap-4">
+          <button
+            onClick={() => setIsPresetsModalOpen(true)}
+            className="p-2 rounded-full hover:bg-surface-container-highest/50 transition-all duration-300 active:scale-95 text-on-surface-variant"
+            aria-label="Open presets"
+            title="My Presets"
+          >
+            <span className="material-symbols-outlined">bookmarks</span>
+          </button>
           <Link
             href="/settings"
             className="p-2 rounded-full hover:bg-surface-container-highest/50 transition-all duration-300 active:scale-95 text-on-surface-variant"
@@ -78,6 +89,7 @@ export default function Navbar() {
           </Link>
         ))}
       </div>
+      <PresetsModal isOpen={isPresetsModalOpen} onClose={() => setIsPresetsModalOpen(false)} />
     </nav>
   );
 }

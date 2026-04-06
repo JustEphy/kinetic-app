@@ -416,8 +416,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return [newPreset, ...prev];
     });
     await ds.saveWorkoutPreset(newPreset);
-    const refreshedPresets = await ds.getWorkoutPresets(userId);
-    setWorkoutPresets(refreshedPresets);
+    try {
+      const refreshedPresets = await ds.getWorkoutPresets(userId);
+      setWorkoutPresets(refreshedPresets);
+    } catch (error) {
+      console.warn('Preset refresh warning (save succeeded):', error);
+    }
   }, [user]);
 
   const deleteWorkoutPreset = useCallback(async (presetId: string) => {

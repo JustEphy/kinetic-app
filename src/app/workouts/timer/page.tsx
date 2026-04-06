@@ -28,6 +28,7 @@ export default function TimerPage() {
     setHapticEnabled,
     soundEnabled,
     hapticEnabled,
+    lastTransitionAt,
     startWorkout,
   } = useWorkout();
 
@@ -39,24 +40,34 @@ export default function TimerPage() {
 
   // Keep screen awake if enabled
   useEffect(() => {
-    if (settings.keepScreenOn && isRunning && 'wakeLock' in navigator) {
-      let wakeLock: WakeLockSentinel | null = null;
-      
-      const requestWakeLock = async () => {
-        try {
-          wakeLock = await navigator.wakeLock.request('screen');
-        } catch (err) {
-          console.log('Wake Lock error:', err);
-        }
-      };
-      
-      requestWakeLock();
-      
-      return () => {
-        wakeLock?.release();
-      };
-    }
-  }, [settings.screenAlwaysOn, isRunning]);
+    if (!settings.keepScreenOn || !isRunning || !('wakeLock' in navigator)) return;
+
+    let wakeLock: WakeLockSentinel | null = null;
+    let released = false;
+
+    const requestWakeLock = async () => {
+      try {
+        wakeLock = await navigator.wakeLock.request('screen');
+      } catch (err) {
+        console.log('Wake Lock error:', err);
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && !released) {
+        void requestWakeLock();
+      }
+    };
+
+    void requestWakeLock();
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      released = true;
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      void wakeLock?.release();
+    };
+  }, [settings.keepScreenOn, isRunning]);
 
   // Redirect if no workout
   useEffect(() => {
@@ -94,6 +105,7 @@ export default function TimerPage() {
       currentInterval={currentInterval}
       nextInterval={nextInterval}
       isPaused={isPaused}
+      lastTransitionAt={lastTransitionAt}
       onReset={resetWorkout}
       onPauseResume={isPaused ? resumeWorkout : pauseWorkout}
       onEnd={handleEnd}
