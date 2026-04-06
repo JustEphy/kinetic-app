@@ -8,6 +8,7 @@ import { createBrowserClient } from '@supabase/ssr';
 export function createClient() {
   const authDebugEnabled = process.env.NEXT_PUBLIC_AUTH_DEBUG === 'true';
   const timeoutMs = Number(process.env.NEXT_PUBLIC_AUTH_HTTP_TIMEOUT_MS ?? 12000);
+  
   const timedFetch: typeof fetch = async (input, init) => {
     const controller = new AbortController();
     const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
@@ -32,20 +33,22 @@ export function createClient() {
     } catch (error) {
       const url = typeof input === 'string' ? input : input.toString();
       const isTimeout = error instanceof DOMException && error.name === 'AbortError';
-      const wrappedError = isTimeout
-        ? new Error(`Supabase request timed out after ${timeoutMs}ms: ${url}`)
-        : error;
-
+      
       if (authDebugEnabled) {
         console.warn('[auth-debug] supabase-fetch:error', {
           url,
           durationMs: Math.round(performance.now() - startedAt),
           isTimeout,
-          error: wrappedError,
+          error,
         });
       }
 
-      throw wrappedError;
+      // Don't wrap timeout errors - let Supabase handle them
+      if (isTimeout) {
+        console.error(`[SUPABASE] Request timed out after ${timeoutMs}ms: ${url}`);
+      }
+      
+      throw error;
     } finally {
       window.clearTimeout(timeoutId);
     }
@@ -55,6 +58,11 @@ export function createClient() {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true,
+      },
       global: {
         fetch: timedFetch,
       },
