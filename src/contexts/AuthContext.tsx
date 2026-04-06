@@ -165,8 +165,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     initSession();
 
-    // Listen for auth state changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+    // Keep callback synchronous; defer async work to avoid auth deadlocks.
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (!isMounted) return;
       authDebug('onAuthStateChange:received', {
         event,
@@ -174,48 +174,72 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         userId: session?.user?.id ?? null,
       });
 
-      try {
-        if (event === 'SIGNED_OUT' && signingOutRef.current) {
-          authDebug('onAuthStateChange:handling-signout');
-          setUser(null);
-          setSupabaseUser(null);
-          setSettings(DEFAULT_SETTINGS);
-          setStats(DEFAULT_STATS);
-          setPersonalRecords([]);
-          setRecentActivity([]);
-          setWorkoutPresets([]);
-          return;
-        }
-
-        if ((event === 'INITIAL_SESSION' || event === 'SIGNED_IN') && session?.user) {
-          const loadStartedAt = performance.now();
-          setIsLoading(true);
-          const mappedUser = mapSupabaseUser(session.user);
-          setUser(mappedUser);
-          setSupabaseUser(session.user);
-          await loadUserData(session.user.id, false);
-          authDebug('onAuthStateChange:loaded-user-data', {
-            event,
-            userId: session.user.id,
-            durationMs: Math.round(performance.now() - loadStartedAt),
-          });
-        } else if (event === 'INITIAL_SESSION' || event === 'SIGNED_OUT') {
-          authDebug('onAuthStateChange:guest-state');
-          setUser(null);
-          setSupabaseUser(null);
-          setSettings(DEFAULT_SETTINGS);
-          setStats(DEFAULT_STATS);
-          setPersonalRecords([]);
-          setRecentActivity([]);
-          const guestPresets = await localDataStore.getWorkoutPresets('guest');
-          setWorkoutPresets(guestPresets);
-        }
-      } catch (error) {
-        console.error('Auth state change error:', error);
-        authDebug('onAuthStateChange:error', error);
-      } finally {
+      if (event === 'SIGNED_OUT' && signingOutRef.current) {
+        authDebug('onAuthStateChange:handling-signout');
+        setUser(null);
+        setSupabaseUser(null);
+        setSettings(DEFAULT_SETTINGS);
+        setStats(DEFAULT_STATS);
+        setPersonalRecords([]);
+        setRecentActivity([]);
+        setWorkoutPresets([]);
         if (isMounted) setIsLoading(false);
+        return;
       }
+
+      if ((event === 'INITIAL_SESSION' || event === 'SIGNED_IN') && session?.user) {
+        const loadStartedAt = performance.now();
+        setIsLoading(true);
+        const mappedUser = mapSupabaseUser(session.user);
+        setUser(mappedUser);
+        setSupabaseUser(session.user);
+
+        window.setTimeout(() => {
+          void (async () => {
+            try {
+              await loadUserData(session.user.id, false);
+              authDebug('onAuthStateChange:loaded-user-data', {
+                event,
+                userId: session.user.id,
+                durationMs: Math.round(performance.now() - loadStartedAt),
+              });
+            } catch (error) {
+              console.error('Auth state change error:', error);
+              authDebug('onAuthStateChange:error', error);
+            } finally {
+              if (isMounted) setIsLoading(false);
+            }
+          })();
+        }, 0);
+        return;
+      }
+
+      if (event === 'INITIAL_SESSION' || event === 'SIGNED_OUT') {
+        authDebug('onAuthStateChange:guest-state');
+        setUser(null);
+        setSupabaseUser(null);
+        setSettings(DEFAULT_SETTINGS);
+        setStats(DEFAULT_STATS);
+        setPersonalRecords([]);
+        setRecentActivity([]);
+
+        window.setTimeout(() => {
+          void (async () => {
+            try {
+              const guestPresets = await localDataStore.getWorkoutPresets('guest');
+              setWorkoutPresets(guestPresets);
+            } catch (error) {
+              console.error('Auth state change error:', error);
+              authDebug('onAuthStateChange:error', error);
+            } finally {
+              if (isMounted) setIsLoading(false);
+            }
+          })();
+        }, 0);
+        return;
+      }
+
+      if (isMounted) setIsLoading(false);
     });
 
     // Safety valve: never leave UI in loading state
@@ -236,60 +260,42 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signInWithEmail = useCallback(async (email: string, password: string) => {
     const supabase = getSupabase();
     const signInStartedAt = performance.now();
-    console.log('[AUTH] signInWithEmail:start', { email });
+    authDebug('signInWithEmail:start', { email });
     setIsLoading(true);
 
     try {
-      console.log('[AUTH] Calling supabase.auth.signInWithPassword...');
-      
-      const result = await Promise.race([
-        supabase.auth.signInWithPassword({ email, password }),
-        new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('signInWithPassword timed out after 30s')), 30000)
-        )
-      ]) as any;
-      
-      console.log('[AUTH] signInWithPassword returned:', {
-        hasData: !!result.data,
-        hasError: !!result.error,
-        hasSession: !!result.data?.session,
-        hasUser: !!result.data?.user,
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
       });
 
-      if (result.error) {
-        console.error('[AUTH] Sign-in error:', result.error);
+      if (error) {
+        console.error('[AUTH] Email sign-in error:', error);
+        authDebug('signInWithEmail:error', {
+          email,
+          durationMs: Math.round(performance.now() - signInStartedAt),
+          message: error.message,
+        });
         setIsLoading(false);
-        throw result.error;
+        throw error;
       }
-      
-      console.log('[AUTH] Sign-in successful!', {
-        userId: result.data?.user?.id,
-        hasSession: !!result.data?.session,
-        sessionExpiresAt: result.data?.session?.expires_at,
+
+      authDebug('signInWithEmail:success', {
+        email,
+        userId: data.user?.id,
+        hasSession: !!data.session,
+        durationMs: Math.round(performance.now() - signInStartedAt),
       });
-      
-      // Give the client time to save session to localStorage
-      await new Promise(resolve => setTimeout(resolve, 100));
-      
-      // Verify session was saved
-      const { data: { session } } = await supabase.auth.getSession();
-      console.log('[AUTH] Session check after sign-in:', {
-        hasSession: !!session,
-        userId: session?.user?.id,
-      });
-      
-      if (!session) {
-        console.error('[AUTH] Session not found after successful sign-in! Check localStorage.');
-        throw new Error('Session not persisted after sign-in');
-      }
-      
-      console.log('[AUTH] signInWithEmail complete, durationMs:', Math.round(performance.now() - signInStartedAt));
     } catch (error) {
-      console.error('[AUTH] signInWithEmail failed:', error);
+      console.error('[AUTH] Email sign-in catch:', error);
+      authDebug('signInWithEmail:catch', {
+        email,
+        durationMs: Math.round(performance.now() - signInStartedAt),
+      });
       setIsLoading(false);
       throw error;
     }
-  }, []);
+  }, [authDebug]);
 
   const signUpWithEmail = useCallback(async (email: string, password: string, name?: string) => {
     const supabase = getSupabase();
