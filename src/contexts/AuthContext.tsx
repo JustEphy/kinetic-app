@@ -236,49 +236,60 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signInWithEmail = useCallback(async (email: string, password: string) => {
     const supabase = getSupabase();
     const signInStartedAt = performance.now();
-    authDebug('signInWithEmail:start', { email });
+    console.log('[AUTH] signInWithEmail:start', { email });
     setIsLoading(true);
 
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
+      console.log('[AUTH] Calling supabase.auth.signInWithPassword...');
+      
+      const result = await Promise.race([
+        supabase.auth.signInWithPassword({ email, password }),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('signInWithPassword timed out after 30s')), 30000)
+        )
+      ]) as any;
+      
+      console.log('[AUTH] signInWithPassword returned:', {
+        hasData: !!result.data,
+        hasError: !!result.error,
+        hasSession: !!result.data?.session,
+        hasUser: !!result.data?.user,
       });
 
-      if (error) {
-        console.error('[AUTH] Email sign-in error:', error);
-        authDebug('signInWithEmail:error', {
-          email,
-          durationMs: Math.round(performance.now() - signInStartedAt),
-          message: error.message,
-        });
+      if (result.error) {
+        console.error('[AUTH] Sign-in error:', result.error);
         setIsLoading(false);
-        throw error;
+        throw result.error;
       }
       
-      console.log('[AUTH] Sign in successful', {
-        userId: data.user?.id,
-        hasSession: !!data.session,
+      console.log('[AUTH] Sign-in successful!', {
+        userId: result.data?.user?.id,
+        hasSession: !!result.data?.session,
+        sessionExpiresAt: result.data?.session?.expires_at,
       });
       
-      authDebug('signInWithEmail:success', {
-        email,
-        userId: data.user?.id,
-        durationMs: Math.round(performance.now() - signInStartedAt),
+      // Give the client time to save session to localStorage
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // Verify session was saved
+      const { data: { session } } = await supabase.auth.getSession();
+      console.log('[AUTH] Session check after sign-in:', {
+        hasSession: !!session,
+        userId: session?.user?.id,
       });
       
-      // Session will be picked up by onAuthStateChange listener
-      // which will call setIsLoading(false) and load user data
+      if (!session) {
+        console.error('[AUTH] Session not found after successful sign-in! Check localStorage.');
+        throw new Error('Session not persisted after sign-in');
+      }
+      
+      console.log('[AUTH] signInWithEmail complete, durationMs:', Math.round(performance.now() - signInStartedAt));
     } catch (error) {
-      console.error('[AUTH] Email sign-in catch:', error);
-      authDebug('signInWithEmail:catch', {
-        email,
-        durationMs: Math.round(performance.now() - signInStartedAt),
-      });
+      console.error('[AUTH] signInWithEmail failed:', error);
       setIsLoading(false);
       throw error;
     }
-  }, [authDebug]);
+  }, []);
 
   const signUpWithEmail = useCallback(async (email: string, password: string, name?: string) => {
     const supabase = getSupabase();
