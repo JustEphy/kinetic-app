@@ -25,7 +25,6 @@ const STORAGE_KEYS = {
   SETTINGS: 'kinetic_settings',
   RECORDS: 'kinetic_records',
   ACTIVITY: 'kinetic_activity',
-  TOKEN: 'kinetic_token',
   PRESETS: 'kinetic_presets',
   PROFILE: 'kinetic_profile',
 };
@@ -81,21 +80,6 @@ const safeLocalStorage = {
 // Generate unique IDs
 export const generateId = (): string => {
   return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-};
-
-// Generate a simple token for guest users
-export const generateGuestToken = (): string => {
-  const token = `guest_${generateId()}`;
-  safeLocalStorage.setItem(STORAGE_KEYS.TOKEN, token);
-  return token;
-};
-
-export const getStoredToken = (): string | null => {
-  return safeLocalStorage.getItem(STORAGE_KEYS.TOKEN);
-};
-
-export const clearStoredToken = (): void => {
-  safeLocalStorage.removeItem(STORAGE_KEYS.TOKEN);
 };
 
 /**

@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
 const navLinks = [
-  { href: '/', label: 'Home' },
+  { href: '/home', label: 'Home' },
   { href: '/workouts', label: 'Workouts' },
   { href: '/stats', label: 'Stats' },
   { href: '/profile', label: 'Profile' },
@@ -14,7 +14,7 @@ export default function Navbar() {
   const pathname = usePathname();
 
   const isActive = (href: string) => {
-    if (href === '/') return pathname === '/';
+    if (href === '/home') return pathname === '/home';
     return pathname.startsWith(href);
   };
 
@@ -22,7 +22,7 @@ export default function Navbar() {
     <nav className="fixed top-0 w-full z-50 bg-background/80 backdrop-blur-xl shadow-md" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
       <div className="flex justify-between items-center px-8 py-4 max-w-full mx-auto">
         {/* Logo */}
-        <Link href="/" className="text-2xl font-black italic tracking-tighter text-primary">
+        <Link href="/home" className="text-2xl font-black italic tracking-tighter text-primary">
           KINETIC
         </Link>
 

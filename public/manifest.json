@@ -1,0 +1,16 @@
+{
+  "name": "KINETIC",
+  "short_name": "KINETIC",
+  "description": "AI-powered workout timer with precision-engineered interval training",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0c0e12",
+  "theme_color": "#0c0e12",
+  "icons": [
+    {
+      "src": "/next.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

@@ -1,0 +1,227 @@
+-- KINETIC App Database Schema
+-- Run this in your Supabase SQL Editor to create all necessary tables
+
+-- Enable UUID extension
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+-- Profiles table (extends Supabase auth.users)
+CREATE TABLE IF NOT EXISTS profiles (
+  id UUID REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
+  email TEXT,
+  name TEXT,
+  avatar_url TEXT,
+  bio TEXT,
+  fitness_goal TEXT,
+  preferred_workout_types TEXT[],
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- User Settings table
+CREATE TABLE IF NOT EXISTS user_settings (
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
+  theme TEXT DEFAULT 'midnight-cyber',
+  sound_enabled BOOLEAN DEFAULT true,
+  haptic_enabled BOOLEAN DEFAULT true,
+  voice_enabled BOOLEAN DEFAULT false,
+  keep_screen_on BOOLEAN DEFAULT false,
+  auto_start_intervals BOOLEAN DEFAULT true,
+  units TEXT DEFAULT 'metric',
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- User Stats table
+CREATE TABLE IF NOT EXISTS user_stats (
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
+  lifetime_total_time INTEGER DEFAULT 0,
+  total_calories_burnt INTEGER DEFAULT 0,
+  workouts_completed INTEGER DEFAULT 0,
+  current_streak INTEGER DEFAULT 0,
+  monthly_goal_hours INTEGER DEFAULT 120,
+  monthly_completed_hours INTEGER DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Workouts table
+CREATE TABLE IF NOT EXISTS workouts (
+  id TEXT PRIMARY KEY,
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  description TEXT,
+  total_duration INTEGER,
+  intervals JSONB,
+  intensity INTEGER DEFAULT 50,
+  estimated_calories INTEGER DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Workout Sessions table
+CREATE TABLE IF NOT EXISTS workout_sessions (
+  id TEXT PRIMARY KEY,
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+  workout_id TEXT,
+  workout JSONB,
+  started_at TIMESTAMPTZ NOT NULL,
+  completed_at TIMESTAMPTZ,
+  elapsed_time INTEGER DEFAULT 0,
+  interval_elapsed_time INTEGER DEFAULT 0,
+  current_interval_index INTEGER DEFAULT 0,
+  status TEXT DEFAULT 'idle',
+  calories_burned INTEGER DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Personal Records table
+CREATE TABLE IF NOT EXISTS personal_records (
+  id TEXT PRIMARY KEY,
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+  category TEXT NOT NULL,
+  value NUMERIC NOT NULL,
+  unit TEXT,
+  achieved_at TIMESTAMPTZ NOT NULL,
+  trend TEXT DEFAULT 'stable',
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Recent Activity table
+CREATE TABLE IF NOT EXISTS recent_activity (
+  id TEXT PRIMARY KEY,
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+  workout_name TEXT NOT NULL,
+  type TEXT NOT NULL,
+  completed_at TIMESTAMPTZ NOT NULL,
+  duration INTEGER,
+  metrics JSONB DEFAULT '[]',
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Workout Presets table
+CREATE TABLE IF NOT EXISTS workout_presets (
+  id TEXT PRIMARY KEY,
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  description TEXT,
+  duration INTEGER,
+  intervals JSONB,
+  is_default BOOLEAN DEFAULT false,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Create indexes for better query performance
+CREATE INDEX IF NOT EXISTS idx_workouts_user_id ON workouts(user_id);
+CREATE INDEX IF NOT EXISTS idx_workout_sessions_user_id ON workout_sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_personal_records_user_id ON personal_records(user_id);
+CREATE INDEX IF NOT EXISTS idx_recent_activity_user_id ON recent_activity(user_id);
+CREATE INDEX IF NOT EXISTS idx_workout_presets_user_id ON workout_presets(user_id);
+
+-- Enable Row Level Security (RLS)
+ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE user_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE user_stats ENABLE ROW LEVEL SECURITY;
+ALTER TABLE workouts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE workout_sessions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE personal_records ENABLE ROW LEVEL SECURITY;
+ALTER TABLE recent_activity ENABLE ROW LEVEL SECURITY;
+ALTER TABLE workout_presets ENABLE ROW LEVEL SECURITY;
+
+-- RLS Policies: Users can only access their own data
+
+-- Profiles policies
+CREATE POLICY "Users can view own profile" ON profiles
+  FOR SELECT USING (auth.uid() = id);
+CREATE POLICY "Users can update own profile" ON profiles
+  FOR UPDATE USING (auth.uid() = id);
+CREATE POLICY "Users can insert own profile" ON profiles
+  FOR INSERT WITH CHECK (auth.uid() = id);
+
+-- User Settings policies
+CREATE POLICY "Users can view own settings" ON user_settings
+  FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can update own settings" ON user_settings
+  FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY "Users can insert own settings" ON user_settings
+  FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+-- User Stats policies
+CREATE POLICY "Users can view own stats" ON user_stats
+  FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can update own stats" ON user_stats
+  FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY "Users can insert own stats" ON user_stats
+  FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+-- Workouts policies
+CREATE POLICY "Users can view own workouts" ON workouts
+  FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can insert own workouts" ON workouts
+  FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can update own workouts" ON workouts
+  FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY "Users can delete own workouts" ON workouts
+  FOR DELETE USING (auth.uid() = user_id);
+
+-- Workout Sessions policies
+CREATE POLICY "Users can view own sessions" ON workout_sessions
+  FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can insert own sessions" ON workout_sessions
+  FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can update own sessions" ON workout_sessions
+  FOR UPDATE USING (auth.uid() = user_id);
+
+-- Personal Records policies
+CREATE POLICY "Users can view own records" ON personal_records
+  FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can insert own records" ON personal_records
+  FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can update own records" ON personal_records
+  FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY "Users can delete own records" ON personal_records
+  FOR DELETE USING (auth.uid() = user_id);
+
+-- Recent Activity policies
+CREATE POLICY "Users can view own activity" ON recent_activity
+  FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can insert own activity" ON recent_activity
+  FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+-- Workout Presets policies (can see own + defaults)
+CREATE POLICY "Users can view own presets or defaults" ON workout_presets
+  FOR SELECT USING (auth.uid() = user_id OR is_default = true);
+CREATE POLICY "Users can insert own presets" ON workout_presets
+  FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can update own presets" ON workout_presets
+  FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY "Users can delete own presets" ON workout_presets
+  FOR DELETE USING (auth.uid() = user_id);
+
+-- Function to handle new user signups
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER AS $$
+BEGIN
+  INSERT INTO public.profiles (id, email, name, avatar_url)
+  VALUES (
+    NEW.id,
+    NEW.email,
+    COALESCE(NEW.raw_user_meta_data->>'name', NEW.raw_user_meta_data->>'full_name', split_part(NEW.email, '@', 1)),
+    NEW.raw_user_meta_data->>'avatar_url'
+  );
+  
+  INSERT INTO public.user_settings (user_id)
+  VALUES (NEW.id);
+  
+  INSERT INTO public.user_stats (user_id)
+  VALUES (NEW.id);
+  
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Trigger to auto-create profile on signup
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();

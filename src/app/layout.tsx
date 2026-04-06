@@ -1,8 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Lexend } from "next/font/google";
 import "./globals.css";
-import Navbar from "@/components/Navbar";
-import Footer from "@/components/Footer";
+import ChromeShell from "@/components/ChromeShell";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { WorkoutProvider } from "@/contexts/WorkoutContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
@@ -47,11 +46,9 @@ export default function RootLayout({
         <ThemeProvider>
           <AuthProvider>
             <WorkoutProvider>
-              <Navbar />
-              <main className="flex-1 pt-40 md:pt-20">
+              <ChromeShell>
                 {children}
-              </main>
-              <Footer />
+              </ChromeShell>
             </WorkoutProvider>
           </AuthProvider>
         </ThemeProvider>

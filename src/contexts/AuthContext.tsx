@@ -1,8 +1,14 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { User, UserSettings, UserStats, PersonalRecord, RecentActivity, WorkoutPreset, UserProfile } from '@/types';
-import { dataStore, generateId, generateGuestToken, getStoredToken } from '@/lib/db';
+import { dataStore as localDataStore, generateId } from '@/lib/db';
+import { getSupabase } from '@/lib/supabase/client';
+import { supabaseDataStore } from '@/lib/supabase/dataStore';
+import type { User as SupabaseUser } from '@supabase/supabase-js';
+
+// Use Supabase data store for authenticated users, localStorage for guests
+const getDataStore = (isGuest: boolean) => isGuest ? localDataStore : supabaseDataStore;
 
 interface AuthContextType {
   user: User | null;
@@ -15,9 +21,11 @@ interface AuthContextType {
   workoutPresets: WorkoutPreset[];
   
   // Actions
-  signInWithGoogle: () => Promise<void>;
-  signInAsGuest: () => Promise<void>;
+  signInWithEmail: (email: string, password: string) => Promise<void>;
+  signUpWithEmail: (email: string, password: string, name?: string) => Promise<void>;
   signOut: () => Promise<void>;
+  requestPasswordReset: (email: string) => Promise<void>;
+  updatePassword: (password: string) => Promise<void>;
   updateSettings: (settings: Partial<UserSettings>) => Promise<void>;
   updateStats: (stats: Partial<UserStats>) => Promise<void>;
   updateProfile: (profile: Partial<UserProfile>) => Promise<void>;
@@ -52,90 +60,276 @@ const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [supabaseUser, setSupabaseUser] = useState<SupabaseUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [settings, setSettings] = useState<UserSettings>(DEFAULT_SETTINGS);
   const [stats, setStats] = useState<UserStats>(DEFAULT_STATS);
   const [personalRecords, setPersonalRecords] = useState<PersonalRecord[]>([]);
   const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([]);
   const [workoutPresets, setWorkoutPresets] = useState<WorkoutPreset[]>([]);
+  const authInitRef = useRef(false);
+  const signingOutRef = useRef(false);
+  const authDebugEnabled = process.env.NEXT_PUBLIC_AUTH_DEBUG === 'true';
+  const authDebug = (label: string, details?: unknown) => {
+    if (!authDebugEnabled) return;
+    const timestamp = new Date().toISOString();
+    if (details !== undefined) {
+      console.info(`[auth-debug ${timestamp}] ${label}`, details);
+      return;
+    }
+    console.info(`[auth-debug ${timestamp}] ${label}`);
+  };
 
   const isGuest = user?.isGuest ?? true;
+  const dataStore = getDataStore(isGuest);
 
-  // Load user data on mount
+  // Convert Supabase user to our User type
+  const mapSupabaseUser = (sbUser: SupabaseUser): User => ({
+    id: sbUser.id,
+    email: sbUser.email,
+    name: sbUser.user_metadata?.full_name || sbUser.user_metadata?.name || sbUser.email?.split('@')[0],
+    image: sbUser.user_metadata?.avatar_url,
+    isGuest: false,
+    createdAt: new Date(sbUser.created_at),
+    tier: 'free',
+    memberSince: new Date(sbUser.created_at),
+  });
+
+  // Load user data from dataStore
+  const loadUserData = useCallback(async (userId: string, isGuestUser: boolean) => {
+    const ds = getDataStore(isGuestUser);
+    try {
+      const userSettings = await ds.getSettings(userId);
+      setSettings(userSettings);
+      const userStats = await ds.getUserStats(userId);
+      setStats(userStats);
+      const records = await ds.getPersonalRecords(userId);
+      setPersonalRecords(records);
+      const activity = await ds.getRecentActivity(userId);
+      setRecentActivity(activity);
+      const presets = await ds.getWorkoutPresets(userId);
+      setWorkoutPresets(presets);
+    } catch (error) {
+      console.error('Error loading user data:', error);
+      // Set defaults on error to prevent infinite loading
+      setSettings(DEFAULT_SETTINGS);
+      setStats(DEFAULT_STATS);
+      setPersonalRecords([]);
+      setRecentActivity([]);
+      setWorkoutPresets([]);
+    }
+  }, []);
+
+  // Initialize auth state
   useEffect(() => {
-    const initAuth = async () => {
+    if (authInitRef.current) return;
+    authInitRef.current = true;
+
+    const supabase = getSupabase();
+    let isMounted = true;
+
+    // Listen for auth state changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (!isMounted) return;
+      authDebug('onAuthStateChange:received', {
+        event,
+        hasSession: !!session,
+        userId: session?.user?.id ?? null,
+      });
+
       try {
-        const token = getStoredToken();
-        
-        if (token) {
-          // Load existing user
-          const existingUser = await dataStore.getUser(token);
-          if (existingUser) {
-            setUser(existingUser);
-            const userSettings = await dataStore.getSettings(token);
-            setSettings(userSettings);
-            const userStats = await dataStore.getUserStats(token);
-            setStats(userStats);
-            const records = await dataStore.getPersonalRecords(token);
-            setPersonalRecords(records);
-            const activity = await dataStore.getRecentActivity(token);
-            setRecentActivity(activity);
-            const presets = await dataStore.getWorkoutPresets(token);
-            setWorkoutPresets(presets);
-          }
-        } else {
-          // Load guest presets even without a user
-          const guestPresets = await dataStore.getWorkoutPresets('guest');
+        if (event === 'SIGNED_OUT' && signingOutRef.current) {
+          authDebug('onAuthStateChange:handling-signout');
+          setUser(null);
+          setSupabaseUser(null);
+          setSettings(DEFAULT_SETTINGS);
+          setStats(DEFAULT_STATS);
+          setPersonalRecords([]);
+          setRecentActivity([]);
+          setWorkoutPresets([]);
+          return;
+        }
+
+        if ((event === 'INITIAL_SESSION' || event === 'SIGNED_IN') && session?.user) {
+          const loadStartedAt = performance.now();
+          setIsLoading(true);
+          const mappedUser = mapSupabaseUser(session.user);
+          setUser(mappedUser);
+          setSupabaseUser(session.user);
+          await loadUserData(session.user.id, false);
+          authDebug('onAuthStateChange:loaded-user-data', {
+            event,
+            userId: session.user.id,
+            durationMs: Math.round(performance.now() - loadStartedAt),
+          });
+        } else if (event === 'INITIAL_SESSION' || event === 'SIGNED_OUT') {
+          authDebug('onAuthStateChange:guest-state');
+          setUser(null);
+          setSupabaseUser(null);
+          setSettings(DEFAULT_SETTINGS);
+          setStats(DEFAULT_STATS);
+          setPersonalRecords([]);
+          setRecentActivity([]);
+          const guestPresets = await localDataStore.getWorkoutPresets('guest');
           setWorkoutPresets(guestPresets);
         }
       } catch (error) {
-        console.error('Auth init error:', error);
+        console.error('Auth state change error:', error);
+        authDebug('onAuthStateChange:error', error);
       } finally {
+        if (isMounted) setIsLoading(false);
+      }
+    });
+
+    // Safety valve: never leave UI in loading state
+    const loadingTimeout = window.setTimeout(() => {
+      if (isMounted) {
+        authDebug('auth-loading-safety-timeout-fired');
         setIsLoading(false);
       }
+    }, 5000);
+
+    return () => {
+      isMounted = false;
+      window.clearTimeout(loadingTimeout);
+      subscription.unsubscribe();
     };
+  }, [loadUserData]);
 
-    initAuth();
-  }, []);
-
-  const signInWithGoogle = useCallback(async () => {
-    // In a real app, this would trigger NextAuth Google sign-in
-    // For now, we'll simulate it
-    console.log('Google sign-in would happen here');
-    // window.location.href = '/api/auth/signin/google';
-  }, []);
-
-  const signInAsGuest = useCallback(async () => {
+  const signInWithEmail = useCallback(async (email: string, password: string) => {
+    const supabase = getSupabase();
+    const signInStartedAt = performance.now();
+    authDebug('signInWithEmail:start', { email });
     setIsLoading(true);
+
     try {
-      const token = generateGuestToken();
-      const guestUser: User = {
-        id: token,
-        name: 'Guest User',
-        isGuest: true,
-        createdAt: new Date(),
-        tier: 'free',
-        memberSince: new Date(),
-      };
-      
-      await dataStore.saveUser(guestUser);
-      await dataStore.saveSettings(token, DEFAULT_SETTINGS);
-      
-      setUser(guestUser);
-      setSettings(DEFAULT_SETTINGS);
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) {
+        console.error('Email sign-in error:', error);
+        authDebug('signInWithEmail:error', {
+          email,
+          durationMs: Math.round(performance.now() - signInStartedAt),
+          message: error.message,
+        });
+        throw error;
+      }
+      authDebug('signInWithEmail:success', {
+        email,
+        durationMs: Math.round(performance.now() - signInStartedAt),
+      });
     } catch (error) {
-      console.error('Guest sign-in error:', error);
-    } finally {
+      console.error('Email sign-in error:', error);
+      authDebug('signInWithEmail:catch', {
+        email,
+        durationMs: Math.round(performance.now() - signInStartedAt),
+      });
       setIsLoading(false);
+      throw error;
+    }
+  }, [authDebug]);
+
+  const signUpWithEmail = useCallback(async (email: string, password: string, name?: string) => {
+    const supabase = getSupabase();
+    setIsLoading(true);
+
+    try {
+      const { error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            name: name?.trim() || email.split('@')[0],
+          },
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
+        },
+      });
+
+      if (error) {
+        console.error('Email sign-up error:', error);
+        throw error;
+      }
+    } catch (error) {
+      console.error('Email sign-up error:', error);
+      setIsLoading(false);
+      throw error;
     }
   }, []);
 
   const signOut = useCallback(async () => {
-    setUser(null);
-    setSettings(DEFAULT_SETTINGS);
-    setStats(DEFAULT_STATS);
-    // Note: We don't clear localStorage here to preserve guest data
-    // In a real app, you might want to clear it
+    const supabase = getSupabase();
+
+    signingOutRef.current = true;
+
+    try {
+      const localSignOutResult = await Promise.race([
+        supabase.auth.signOut({ scope: 'local' }),
+        new Promise<{ error: null }>((resolve) =>
+          window.setTimeout(() => resolve({ error: null }), 5000)
+        ),
+      ]);
+
+      const { error } = localSignOutResult;
+      if (error) {
+        console.warn('Local sign out warning:', error);
+      }
+
+      // Best-effort server-side cookie/session cleanup.
+      void fetch('/auth/signout', { method: 'POST' }).catch((serverError) => {
+        console.warn('Server sign out warning:', serverError);
+      });
+    } catch (error) {
+      console.warn('Sign out warning:', error);
+    } finally {
+      // Clear any local auth remnants after Supabase sign-out has been attempted.
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('kinetic_token');
+
+        const authKeys = Object.keys(localStorage).filter(
+          (key) =>
+            key.startsWith('sb-') &&
+            (key.includes('-auth-token') || key.includes('-code-verifier') || key.includes('-refresh-token'))
+        );
+        authKeys.forEach((key) => localStorage.removeItem(key));
+      }
+
+      setUser(null);
+      setSupabaseUser(null);
+      setSettings(DEFAULT_SETTINGS);
+      setStats(DEFAULT_STATS);
+      setPersonalRecords([]);
+      setRecentActivity([]);
+      setWorkoutPresets([]);
+      // allow a microtask turn so route transition can happen first
+      queueMicrotask(() => {
+        signingOutRef.current = false;
+      });
+    }
+  }, []);
+
+  const requestPasswordReset = useCallback(async (email: string) => {
+    const supabase = getSupabase();
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/auth/reset-password`,
+    });
+
+    if (error) {
+      console.error('Password reset request error:', error);
+      throw error;
+    }
+  }, []);
+
+  const updatePassword = useCallback(async (password: string) => {
+    const supabase = getSupabase();
+    const { error } = await supabase.auth.updateUser({ password });
+
+    if (error) {
+      console.error('Password update error:', error);
+      throw error;
+    }
   }, []);
 
   const updateSettings = useCallback(async (newSettings: Partial<UserSettings>) => {
@@ -143,7 +337,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setSettings(updated);
     
     if (user) {
-      await dataStore.saveSettings(user.id, updated);
+      const ds = getDataStore(user.isGuest);
+      await ds.saveSettings(user.id, updated);
     }
   }, [settings, user]);
 
@@ -152,21 +347,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setStats(updated);
     
     if (user) {
-      await dataStore.updateUserStats(user.id, newStats);
+      const ds = getDataStore(user.isGuest);
+      await ds.updateUserStats(user.id, newStats);
     }
   }, [stats, user]);
 
   const updateProfile = useCallback(async (profile: Partial<UserProfile>) => {
     if (!user) return;
     
+    const ds = getDataStore(user.isGuest);
     const updatedUser = { ...user, ...profile };
     setUser(updatedUser);
-    await dataStore.saveUser(updatedUser);
+    await ds.saveUser(updatedUser);
   }, [user]);
 
   const addPersonalRecord = useCallback(async (record: Omit<PersonalRecord, 'id' | 'achievedAt'>) => {
     if (!user) return;
     
+    const ds = getDataStore(user.isGuest);
     const newRecord: PersonalRecord = {
       ...record,
       id: generateId(),
@@ -174,25 +372,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
     
     setPersonalRecords(prev => [...prev, newRecord]);
-    await dataStore.savePersonalRecord(user.id, newRecord);
+    await ds.savePersonalRecord(user.id, newRecord);
   }, [user]);
 
   const updatePersonalRecord = useCallback(async (record: PersonalRecord) => {
     if (!user) return;
     
+    const ds = getDataStore(user.isGuest);
     setPersonalRecords(prev => prev.map(r => r.id === record.id ? record : r));
-    await dataStore.savePersonalRecord(user.id, record);
+    await ds.savePersonalRecord(user.id, record);
   }, [user]);
 
   const deletePersonalRecord = useCallback(async (recordId: string) => {
     if (!user) return;
     
+    const ds = getDataStore(user.isGuest);
     setPersonalRecords(prev => prev.filter(r => r.id !== recordId));
-    await dataStore.deletePersonalRecord(user.id, recordId);
+    await ds.deletePersonalRecord(user.id, recordId);
   }, [user]);
 
   const saveWorkoutPreset = useCallback(async (preset: Omit<WorkoutPreset, 'id' | 'userId' | 'createdAt' | 'updatedAt'>) => {
     const userId = user?.id || 'guest';
+    const ds = getDataStore(user?.isGuest ?? true);
     
     const newPreset: WorkoutPreset = {
       ...preset,
@@ -203,27 +404,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
     
     setWorkoutPresets(prev => [...prev, newPreset]);
-    await dataStore.saveWorkoutPreset(newPreset);
+    await ds.saveWorkoutPreset(newPreset);
   }, [user]);
 
   const deleteWorkoutPreset = useCallback(async (presetId: string) => {
+    const ds = getDataStore(user?.isGuest ?? true);
     setWorkoutPresets(prev => prev.filter(p => p.id !== presetId));
-    await dataStore.deleteWorkoutPreset(presetId);
-  }, []);
+    await ds.deleteWorkoutPreset(presetId);
+  }, [user]);
 
   const refreshData = useCallback(async () => {
     if (!user) return;
     
+    const ds = getDataStore(user.isGuest);
     try {
-      const userSettings = await dataStore.getSettings(user.id);
+      const userSettings = await ds.getSettings(user.id);
       setSettings(userSettings);
-      const userStats = await dataStore.getUserStats(user.id);
+      const userStats = await ds.getUserStats(user.id);
       setStats(userStats);
-      const records = await dataStore.getPersonalRecords(user.id);
+      const records = await ds.getPersonalRecords(user.id);
       setPersonalRecords(records);
-      const activity = await dataStore.getRecentActivity(user.id);
+      const activity = await ds.getRecentActivity(user.id);
       setRecentActivity(activity);
-      const presets = await dataStore.getWorkoutPresets(user.id);
+      const presets = await ds.getWorkoutPresets(user.id);
       setWorkoutPresets(presets);
     } catch (error) {
       console.error('Data refresh error:', error);
@@ -239,9 +442,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     personalRecords,
     recentActivity,
     workoutPresets,
-    signInWithGoogle,
-    signInAsGuest,
+    signInWithEmail,
+    signUpWithEmail,
     signOut,
+    requestPasswordReset,
+    updatePassword,
     updateSettings,
     updateStats,
     updateProfile,

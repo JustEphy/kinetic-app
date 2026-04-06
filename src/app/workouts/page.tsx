@@ -10,7 +10,7 @@ import { generateId } from '@/lib/db';
 
 type IntervalMode = 'simple' | 'advanced';
 
-const DURATION_PRESETS = [15, 30, 45, 60, 90];
+const DURATION_PRESETS = [15, 30, 45, 60, 90, 120];
 
 export default function WorkoutsPage() {
   const router = useRouter();
@@ -307,26 +307,12 @@ export default function WorkoutsPage() {
                 />
               </div>
               
-              {/* Duration Input with Visual Feedback */}
+              {/* Duration Input */}
               <div>
                 <label className="block text-secondary text-xs uppercase tracking-widest font-bold mb-3">
                   Total Duration
                 </label>
-                <div className="flex items-center gap-4">
-                  <div className="flex-1 relative">
-                    <input
-                      type="range"
-                      min="1"
-                      max="120"
-                      value={totalMinutes}
-                      onChange={(e) => setTotalMinutes(parseInt(e.target.value))}
-                      className="w-full h-2 bg-surface-container-highest rounded-full appearance-none cursor-pointer accent-primary"
-                    />
-                    <div 
-                      className="absolute top-0 left-0 h-2 bg-primary rounded-full pointer-events-none"
-                      style={{ width: `${(totalMinutes / 120) * 100}%` }}
-                    />
-                  </div>
+                <div className="flex justify-start">
                   <div className="flex items-center gap-2 bg-surface-container-high rounded-full px-4 py-2">
                     <button
                       onClick={() => setTotalMinutes(Math.max(1, totalMinutes - 1))}
@@ -336,7 +322,7 @@ export default function WorkoutsPage() {
                     </button>
                     <span className="text-2xl font-black w-16 text-center">{totalMinutes}</span>
                     <button
-                      onClick={() => setTotalMinutes(Math.min(120, totalMinutes + 1))}
+                      onClick={() => setTotalMinutes(totalMinutes + 1)}
                       className="w-8 h-8 rounded-full bg-surface-container-highest hover:bg-surface-bright flex items-center justify-center transition-colors"
                     >
                       <span className="material-symbols-outlined text-sm">add</span>
@@ -346,7 +332,7 @@ export default function WorkoutsPage() {
                 </div>
                 {/* Duration presets */}
                 <div className="flex gap-2 mt-3">
-                  {[15, 30, 45, 60, 90].map(min => (
+                  {DURATION_PRESETS.map(min => (
                     <button
                       key={min}
                       onClick={() => setTotalMinutes(min)}
@@ -401,44 +387,44 @@ export default function WorkoutsPage() {
                 </p>
               </div>
               
-              <div className="flex items-center justify-center gap-4 py-8">
+              <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 sm:gap-4 py-8 max-w-md mx-auto">
                 {/* Minutes */}
                 <div className="text-center">
-                  <div className="flex items-center gap-2 bg-surface-container-high rounded-lg px-4 py-3">
+                  <div className="flex items-center justify-center gap-1 sm:gap-2 bg-surface-container-high rounded-lg px-2 sm:px-4 py-2 sm:py-3">
                     <button
                       onClick={() => setSimpleIntervalMinutes(Math.max(0, simpleIntervalMinutes - 1))}
-                      className="w-10 h-10 rounded-full bg-surface-container-highest hover:bg-surface-bright flex items-center justify-center transition-colors"
+                      className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-surface-container-highest hover:bg-surface-bright flex items-center justify-center transition-colors"
                     >
-                      <span className="material-symbols-outlined">remove</span>
+                      <span className="material-symbols-outlined text-base sm:text-xl">remove</span>
                     </button>
-                    <span className="text-5xl font-black w-20 text-center">{simpleIntervalMinutes}</span>
+                    <span className="text-3xl sm:text-5xl font-black w-12 sm:w-20 text-center">{simpleIntervalMinutes}</span>
                     <button
                       onClick={() => setSimpleIntervalMinutes(simpleIntervalMinutes + 1)}
-                      className="w-10 h-10 rounded-full bg-surface-container-highest hover:bg-surface-bright flex items-center justify-center transition-colors"
+                      className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-surface-container-highest hover:bg-surface-bright flex items-center justify-center transition-colors"
                     >
-                      <span className="material-symbols-outlined">add</span>
+                      <span className="material-symbols-outlined text-base sm:text-xl">add</span>
                     </button>
                   </div>
                   <p className="text-on-surface-variant text-xs uppercase tracking-widest font-bold mt-2">Minutes</p>
                 </div>
                 
-                <span className="text-4xl font-black text-primary">:</span>
+                <span className="text-2xl sm:text-4xl font-black text-primary">:</span>
                 
                 {/* Seconds */}
                 <div className="text-center">
-                  <div className="flex items-center gap-2 bg-surface-container-high rounded-lg px-4 py-3">
+                  <div className="flex items-center justify-center gap-1 sm:gap-2 bg-surface-container-high rounded-lg px-2 sm:px-4 py-2 sm:py-3">
                     <button
                       onClick={() => setSimpleIntervalSeconds(Math.max(0, simpleIntervalSeconds - 5))}
-                      className="w-10 h-10 rounded-full bg-surface-container-highest hover:bg-surface-bright flex items-center justify-center transition-colors"
+                      className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-surface-container-highest hover:bg-surface-bright flex items-center justify-center transition-colors"
                     >
-                      <span className="material-symbols-outlined">remove</span>
+                      <span className="material-symbols-outlined text-base sm:text-xl">remove</span>
                     </button>
-                    <span className="text-5xl font-black w-20 text-center">{simpleIntervalSeconds.toString().padStart(2, '0')}</span>
+                    <span className="text-3xl sm:text-5xl font-black w-12 sm:w-20 text-center">{simpleIntervalSeconds.toString().padStart(2, '0')}</span>
                     <button
                       onClick={() => setSimpleIntervalSeconds(Math.min(55, simpleIntervalSeconds + 5))}
-                      className="w-10 h-10 rounded-full bg-surface-container-highest hover:bg-surface-bright flex items-center justify-center transition-colors"
+                      className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-surface-container-highest hover:bg-surface-bright flex items-center justify-center transition-colors"
                     >
-                      <span className="material-symbols-outlined">add</span>
+                      <span className="material-symbols-outlined text-base sm:text-xl">add</span>
                     </button>
                   </div>
                   <p className="text-on-surface-variant text-xs uppercase tracking-widest font-bold mt-2">Seconds</p>

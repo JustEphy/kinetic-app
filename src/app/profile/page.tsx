@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { PersonalRecord } from '@/types';
 
@@ -21,6 +22,7 @@ const WORKOUT_TYPES = [
 ];
 
 export default function ProfilePage() {
+  const router = useRouter();
   const { 
     user, 
     stats, 
@@ -37,6 +39,7 @@ export default function ProfilePage() {
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [isEditingStats, setIsEditingStats] = useState(false);
   const [isAddingRecord, setIsAddingRecord] = useState(false);
+  const [isSigningOut, setIsSigningOut] = useState(false);
   
   // Edit form states
   const [editName, setEditName] = useState(user?.name || '');
@@ -580,7 +583,7 @@ export default function ProfilePage() {
                   href="/auth/signin"
                   className="kinetic-gradient px-8 py-4 rounded-lg font-bold uppercase tracking-widest text-sm hover:opacity-90 transition-opacity"
                 >
-                  Sign In with Google
+                  Sign In
                 </a>
                 <p className="text-on-surface-variant text-sm self-center">
                   Sign in to save your progress and sync across devices
@@ -608,9 +611,19 @@ export default function ProfilePage() {
                 </button>
                 <button
                   className="bg-error/10 hover:bg-error/20 text-error px-8 py-4 rounded-lg font-bold uppercase tracking-widest text-sm transition-colors"
-                  onClick={signOut}
+                  disabled={isSigningOut}
+                  onClick={async () => {
+                    if (isSigningOut) return;
+                    setIsSigningOut(true);
+                    try {
+                      await signOut();
+                      router.replace('/');
+                    } finally {
+                      setIsSigningOut(false);
+                    }
+                  }}
                 >
-                  Sign Out
+                  {isSigningOut ? 'Signing Out...' : 'Sign Out'}
                 </button>
               </>
             )}
@@ -620,3 +633,4 @@ export default function ProfilePage() {
     </div>
   );
 }
+

@@ -2,16 +2,6 @@
 
 import { useAuth } from '@/contexts/AuthContext';
 
-const WEEKLY_DATA = [
-  { day: 'MON', intensity: 50, isHighlight: false },
-  { day: 'TUE', intensity: 75, isHighlight: false },
-  { day: 'WED', intensity: 67, isHighlight: false },
-  { day: 'THU', intensity: 90, isHighlight: true },
-  { day: 'FRI', intensity: 33, isHighlight: false },
-  { day: 'SAT', intensity: 80, isHighlight: false },
-  { day: 'SUN', intensity: 25, isHighlight: false },
-];
-
 export default function StatsPage() {
   const { stats, personalRecords } = useAuth();
 
@@ -55,47 +45,8 @@ export default function StatsPage() {
 
       {/* Bento Grid */}
       <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
-        {/* Weekly Activity Chart */}
-        <div className="md:col-span-8 bg-surface-container-low rounded-lg p-8 relative overflow-hidden group">
-          <div className="flex justify-between items-center mb-8">
-            <div>
-              <h3 className="text-xl font-bold tracking-tight">Weekly Activity Intensity</h3>
-              <p className="text-on-surface-variant text-sm">Real-time exertion tracking (7 days)</p>
-            </div>
-            <div className="flex gap-2">
-              <span className="w-3 h-3 rounded-full bg-secondary"></span>
-              <span className="text-[10px] uppercase font-bold text-on-surface-variant tracking-widest">
-                Active State
-              </span>
-            </div>
-          </div>
-          <div className="h-64 flex items-end justify-between gap-4">
-            {WEEKLY_DATA.map((day, index) => (
-              <div key={index} className="flex-1 flex flex-col items-center gap-2 group/bar">
-                <div
-                  className="w-full bg-surface-container rounded-full relative overflow-hidden"
-                  style={{ height: `${day.intensity * 2.5}px` }}
-                >
-                  <div
-                    className={`absolute bottom-0 w-full h-full rounded-full transition-all group-hover/bar:brightness-125 ${
-                      day.isHighlight ? 'bg-primary' : 'bg-secondary'
-                    }`}
-                  ></div>
-                </div>
-                <span
-                  className={`text-xs font-bold ${
-                    day.isHighlight ? 'text-primary' : 'text-on-surface-variant'
-                  }`}
-                >
-                  {day.day}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-
         {/* Monthly Progress */}
-        <div className="md:col-span-4 bg-surface-container-low rounded-lg p-8 flex flex-col justify-between border-t border-white/5">
+        <div className="md:col-span-12 bg-surface-container-low rounded-lg p-8 flex flex-col justify-between border-t border-white/5">
           <div>
             <h3 className="text-xl font-bold tracking-tight mb-2">Training Volume</h3>
             <p className="text-on-surface-variant text-sm uppercase tracking-widest font-bold">
