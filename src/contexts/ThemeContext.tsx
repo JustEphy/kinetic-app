@@ -14,7 +14,7 @@ const ThemeContext = createContext<ThemeContextType | null>(null);
 const STORAGE_KEY = 'kinetic_theme';
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [themeId, setThemeId] = useState('midnight-cyber');
+  const [themeId, setThemeId] = useState('kinetic-volt');
   const [mounted, setMounted] = useState(false);
 
   // Load saved theme on mount
@@ -89,7 +89,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     applyThemeColors(id);
   }, [applyThemeColors]);
 
-  const currentTheme = themes[themeId] || themes['midnight-cyber'];
+  const currentTheme = themes[themeId] || themes['kinetic-volt'];
 
   // Apply theme on initial render
   useEffect(() => {

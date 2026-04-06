@@ -18,6 +18,26 @@ const PATTERNS = {
   recovery: { workRatio: 2, restRatio: 3, intensity: 40 },
 };
 
+const EXERCISE_NAME_PATTERNS: Array<{ regex: RegExp; names: string[] }> = [
+  { regex: /\bleg|lower body|quad|hamstring|glute\b/i, names: ['Warm Up', 'Leg Press', 'Goblet Squats', 'Walking Lunges', 'Romanian Deadlift', 'Split Squats'] },
+  { regex: /\bchest|push\b/i, names: ['Warm Up', 'Push-Ups', 'Dumbbell Press', 'Incline Press', 'Chest Fly', 'Plyo Push-Ups'] },
+  { regex: /\bback|pull\b/i, names: ['Warm Up', 'Bent-Over Rows', 'Lat Pull-Down', 'Single Arm Rows', 'Face Pulls', 'Deadlift Pull'] },
+  { regex: /\bcore|abs|abdominal\b/i, names: ['Warm Up', 'Plank Hold', 'Dead Bug', 'Bicycle Crunch', 'Russian Twist', 'Hollow Hold'] },
+  { regex: /\bfull body|hiit|circuit\b/i, names: ['Warm Up', 'Burpees', 'Mountain Climbers', 'Jump Squats', 'Push-Ups', 'High Knees'] },
+];
+
+function inferExerciseNames(prompt: string): string[] {
+  const matched = EXERCISE_NAME_PATTERNS.find(({ regex }) => regex.test(prompt));
+  if (matched) return matched.names;
+  return ['Warm Up', 'Work Phase', 'Tempo Push', 'Power Burst', 'Endurance Block', 'Final Push'];
+}
+
+function normalizeDurations(workDuration: number, restDuration: number): { work: number; rest: number } {
+  const normalizedWork = Math.max(30, Math.round(workDuration / 15) * 15);
+  const normalizedRest = Math.max(10, Math.round(restDuration / 5) * 5);
+  return { work: normalizedWork, rest: normalizedRest };
+}
+
 // Groq API integration
 async function callGroqAPI(prompt: string): Promise<{
   totalDuration: number;
@@ -114,6 +134,7 @@ function parseTotalDuration(prompt: string): number {
 // Parse work/rest intervals from prompt
 function parseIntervals(prompt: string): { work: number; rest: number } | null {
   const lowerPrompt = prompt.toLowerCase();
+  const hasExplicitRestLead = /\b(rest|recovery|off)\b.*\b(\d+)\b/.test(lowerPrompt);
   
   // Pattern: "X min work, Y sec rest" or "X-minute work/Y-second rest"
   const workRestPattern = /(\d+(?::\d{2})?)\s*(?:min(?:ute)?s?|sec(?:ond)?s?|m|s)?\s*(?:work|on|active)[\s,/]+(\d+(?::\d{2})?)\s*(?:min(?:ute)?s?|sec(?:ond)?s?|m|s)?\s*(?:rest|off|recovery)/i;
@@ -156,11 +177,25 @@ function parseIntervals(prompt: string): { work: number; rest: number } | null {
   const ratioPattern = /(\d+(?::\d{2})?)\s*\/\s*(\d+(?::\d{2})?)/;
   const ratioMatch = lowerPrompt.match(ratioPattern);
   if (ratioMatch) {
-    const work = parseTime(ratioMatch[1]) || parseInt(ratioMatch[1]) * 60;
-    const rest = parseTime(ratioMatch[2]) || parseInt(ratioMatch[2]);
+    let work = parseTime(ratioMatch[1]) || parseInt(ratioMatch[1]) * 60;
+    let rest = parseTime(ratioMatch[2]) || parseInt(ratioMatch[2]);
+    if (hasExplicitRestLead) {
+      const temp = work;
+      work = rest;
+      rest = temp;
+    }
     if (work && rest) {
       return { work, rest };
     }
+  }
+
+  // Pattern: "rest 30 sec" with implied/default work interval
+  const explicitRestOnly = lowerPrompt.match(/\b(?:rest|recovery|off)\s*(?:for\s*)?(\d+(?::\d{2})?)\s*(sec(?:ond)?s?|s|min(?:ute)?s?|m)?/i);
+  if (explicitRestOnly) {
+    const restBase = explicitRestOnly[1];
+    const restUnit = explicitRestOnly[2] || 'sec';
+    const rest = parseTime(`${restBase} ${restUnit}`) || 30;
+    return { work: 60, rest };
   }
   
   return null;
@@ -205,9 +240,12 @@ function generateWorkout(
   workDuration: number,
   restDuration: number,
   intensity: number = 75,
-  name?: string
+  name?: string,
+  prompt?: string
 ): Workout {
   const intervals: WorkoutInterval[] = [];
+  const exerciseNames = inferExerciseNames(prompt ?? '');
+  let workBlockIndex = 1; // reserve index 0 (Warm Up) for warmup block label only
   let currentTime = 0;
   let isWork = true;
   let blockCount = 0;
@@ -249,20 +287,22 @@ function generateWorkout(
     
     if (isWork) {
       blockCount++;
+      const workLabel = exerciseNames[Math.min(workBlockIndex, exerciseNames.length - 1)];
+      workBlockIndex++;
       intervals.push({
         id: generateId(),
         type: 'work',
         duration,
-        name: 'Work Phase',
-        description: 'High intensity output',
+        name: workLabel,
+        description: `${workLabel} - high intensity output`,
       });
     } else {
       intervals.push({
         id: generateId(),
         type: 'rest',
         duration,
-        name: 'Rest Phase',
-        description: 'Active recovery',
+        name: 'Recovery',
+        description: 'Controlled breathing and active recovery',
       });
     }
     
@@ -270,6 +310,28 @@ function generateWorkout(
     isWork = !isWork;
   }
   
+  // Ensure the final interval before cooldown is a work block, not a recovery block.
+  if (cooldownTime > 0 && intervals.length > 0) {
+    const lastInterval = intervals[intervals.length - 1];
+    if (lastInterval.type === 'rest') {
+      const recoveredDuration = lastInterval.duration;
+      intervals.pop();
+      currentTime -= recoveredDuration;
+
+      const remainingBeforeCooldown = Math.max(0, mainWorkoutEnd - currentTime);
+      if (remainingBeforeCooldown > 10) {
+        const workLabel = exerciseNames[Math.min(workBlockIndex, exerciseNames.length - 1)];
+        intervals.push({
+          id: generateId(),
+          type: 'work',
+          duration: remainingBeforeCooldown,
+          name: workLabel,
+          description: `${workLabel} - finish strong`,
+        });
+      }
+    }
+  }
+
   // Add cooldown if needed
   if (cooldownTime > 0) {
     intervals.push({
@@ -349,13 +411,18 @@ export async function generateWorkoutFromPrompt(request: AIWorkoutRequest): Prom
       workoutName = `${workoutType.toUpperCase()} ${Math.round(totalDuration / 60)}min`;
     }
   }
+
+  const normalizedDurations = normalizeDurations(workDuration, restDuration);
+  workDuration = normalizedDurations.work;
+  restDuration = normalizedDurations.rest;
   
   const workout = generateWorkout(
     totalDuration,
     workDuration,
     restDuration,
     intensity,
-    workoutName
+    workoutName,
+    prompt
   );
   
   // Generate response message
@@ -363,8 +430,7 @@ export async function generateWorkoutFromPrompt(request: AIWorkoutRequest): Prom
   const aiPowered = groqResult ? '🤖 AI-Generated: ' : '';
   const message = `${aiPowered}Created a ${Math.round(totalDuration / 60)}-minute workout with ${intervalCount} work intervals. ` +
     `Work: ${workDuration >= 60 ? `${Math.round(workDuration / 60)} min` : `${workDuration} sec`}, ` +
-    `Rest: ${restDuration} sec. ` +
-    `Estimated calorie burn: ${workout.estimatedCalories} kcal.`;
+    `Rest: ${restDuration} sec.`;
   
   return { workout, message };
 }

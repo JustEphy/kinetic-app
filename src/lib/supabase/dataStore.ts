@@ -19,7 +19,7 @@ import {
 
 // Default values
 const DEFAULT_SETTINGS: UserSettings = {
-  theme: 'midnight-cyber',
+  theme: 'kinetic-volt',
   soundEnabled: true,
   hapticEnabled: true,
   voiceEnabled: false,

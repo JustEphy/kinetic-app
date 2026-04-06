@@ -34,6 +34,7 @@ export default function WorkoutsPage() {
   const [showSavePreset, setShowSavePreset] = useState(false);
   const [presetName, setPresetName] = useState('');
   const [presetDescription, setPresetDescription] = useState('');
+  const [editingPresetId, setEditingPresetId] = useState<string | null>(null);
 
   const handleAIGenerate = async () => {
     if (!aiPrompt.trim()) return;
@@ -46,6 +47,7 @@ export default function WorkoutsPage() {
       });
       setWorkout(result.workout);
       setWorkoutName(result.workout.name);
+      setTotalMinutes(Math.max(1, Math.ceil(result.workout.totalDuration / 60)));
       setIntervals(result.workout.intervals);
       setIntervalMode('advanced');
     } catch (error) {
@@ -158,6 +160,7 @@ export default function WorkoutsPage() {
     const actualDurationMinutes = Math.ceil(actualDurationSeconds / 60);
     
     await saveWorkoutPreset({
+      ...(editingPresetId ? { id: editingPresetId } : {}),
       name: presetName,
       description: presetDescription || undefined,
       duration: actualDurationMinutes,
@@ -165,6 +168,7 @@ export default function WorkoutsPage() {
     });
     
     setShowSavePreset(false);
+    setEditingPresetId(null);
     setPresetName('');
     setPresetDescription('');
   };
@@ -202,17 +206,24 @@ export default function WorkoutsPage() {
   };
 
   // Calculate stats based on mode
+  const simpleIntervalTotal = simpleIntervalMinutes * 60 + simpleIntervalSeconds;
   const totalSeconds = intervalMode === 'simple' 
     ? totalMinutes * 60 
     : intervals.reduce((sum, i) => sum + i.duration, 0);
+  const numSimpleIntervals = simpleIntervalTotal > 0 ? Math.ceil(totalSeconds / simpleIntervalTotal) : 0;
   const workSeconds = intervalMode === 'simple'
     ? totalMinutes * 60
     : intervals.filter(i => i.type === 'work' || i.type === 'warmup').reduce((sum, i) => sum + i.duration, 0);
+  const restSeconds = intervalMode === 'simple'
+    ? 0
+    : intervals.filter(i => i.type === 'rest').reduce((sum, i) => sum + i.duration, 0);
+  const workoutBlockCount = intervalMode === 'simple'
+    ? numSimpleIntervals
+    : intervals.filter(i => i.type === 'work' || i.type === 'warmup').length;
+  const restBlockCount = intervalMode === 'simple'
+    ? 0
+    : intervals.filter(i => i.type === 'rest').length;
   const intensity = totalSeconds > 0 ? Math.round((workSeconds / totalSeconds) * 100) : 0;
-  const estimatedCalories = Math.round((totalSeconds / 60) * (8 + (intensity / 100) * 7));
-
-  const simpleIntervalTotal = simpleIntervalMinutes * 60 + simpleIntervalSeconds;
-  const numSimpleIntervals = simpleIntervalTotal > 0 ? Math.ceil(totalSeconds / simpleIntervalTotal) : 0;
 
   // Duration mismatch detection (only for advanced mode)
   const targetDurationSeconds = totalMinutes * 60;
@@ -605,14 +616,12 @@ export default function WorkoutsPage() {
                   </span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-on-surface-variant">Intervals</span>
-                  <span className="text-primary font-bold">
-                    {intervalMode === 'simple' ? numSimpleIntervals : intervals.length}
-                  </span>
+                  <span className="text-on-surface-variant">Workout Blocks</span>
+                  <span className="text-primary font-bold">{workoutBlockCount} ({Math.ceil(workSeconds / 60)} min)</span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-on-surface-variant">Est. Calories</span>
-                  <span className="text-tertiary font-bold">{estimatedCalories} KCAL</span>
+                  <span className="text-on-surface-variant">Rest Blocks</span>
+                  <span className="text-secondary font-bold">{restBlockCount} ({Math.ceil(restSeconds / 60)} min)</span>
                 </div>
               </div>
               
@@ -643,11 +652,12 @@ export default function WorkoutsPage() {
             </div>
             
             {/* Save as Preset Button */}
-            <button
-              onClick={() => {
-                setPresetName(workoutName || '');
-                setShowSavePreset(true);
-              }}
+             <button
+               onClick={() => {
+                 setEditingPresetId(null);
+                 setPresetName(workoutName || '');
+                 setShowSavePreset(true);
+               }}
               className="w-full py-3 rounded-full bg-surface-container-high text-on-surface-variant text-sm font-bold hover:bg-surface-container-highest transition-colors flex items-center justify-center gap-2"
             >
               <span className="material-symbols-outlined text-sm">bookmark_add</span>
@@ -674,8 +684,21 @@ export default function WorkoutsPage() {
                         <span className="text-on-surface-variant text-xs ml-2">{preset.duration} min</span>
                       </button>
                       <button
+                        onClick={() => {
+                          setEditingPresetId(preset.id);
+                          setPresetName(preset.name);
+                          setPresetDescription(preset.description || '');
+                          setShowSavePreset(true);
+                        }}
+                        className="text-on-surface-variant hover:text-primary opacity-0 group-hover:opacity-100 transition-all p-1"
+                        title="Edit preset"
+                      >
+                        <span className="material-symbols-outlined text-sm">edit</span>
+                      </button>
+                      <button
                         onClick={() => deleteWorkoutPreset(preset.id)}
                         className="text-on-surface-variant hover:text-error opacity-0 group-hover:opacity-100 transition-all p-1"
+                        title="Delete preset"
                       >
                         <span className="material-symbols-outlined text-sm">delete</span>
                       </button>
@@ -708,7 +731,9 @@ export default function WorkoutsPage() {
       {showSavePreset && (
         <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-surface-container-low rounded-lg p-6 max-w-md w-full border border-outline-variant/30">
-            <h3 className="text-xl font-bold text-on-surface mb-4">Save as Preset</h3>
+            <h3 className="text-xl font-bold text-on-surface mb-4">
+              {editingPresetId ? 'Edit Preset' : 'Save as Preset'}
+            </h3>
             <div className="space-y-4">
               <div>
                 <label className="block text-on-surface-variant text-sm mb-2">Preset Name</label>
@@ -737,7 +762,10 @@ export default function WorkoutsPage() {
             </div>
             <div className="flex gap-3 mt-6">
               <button
-                onClick={() => setShowSavePreset(false)}
+                onClick={() => {
+                  setShowSavePreset(false);
+                  setEditingPresetId(null);
+                }}
                 className="flex-1 py-3 rounded-full bg-surface-container text-on-surface-variant font-bold hover:bg-surface-container-high transition-colors"
               >
                 Cancel
@@ -747,7 +775,7 @@ export default function WorkoutsPage() {
                 disabled={!presetName.trim()}
                 className="flex-1 py-3 rounded-full bg-primary text-on-primary font-bold hover:brightness-110 transition-all disabled:opacity-50"
               >
-                Save
+                {editingPresetId ? 'Update' : 'Save'}
               </button>
             </div>
           </div>

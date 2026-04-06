@@ -32,13 +32,13 @@ interface AuthContextType {
   addPersonalRecord: (record: Omit<PersonalRecord, 'id' | 'achievedAt'>) => Promise<void>;
   updatePersonalRecord: (record: PersonalRecord) => Promise<void>;
   deletePersonalRecord: (recordId: string) => Promise<void>;
-  saveWorkoutPreset: (preset: Omit<WorkoutPreset, 'id' | 'userId' | 'createdAt' | 'updatedAt'>) => Promise<void>;
+  saveWorkoutPreset: (preset: (Omit<WorkoutPreset, 'id' | 'userId' | 'createdAt' | 'updatedAt'> & { id?: string })) => Promise<void>;
   deleteWorkoutPreset: (presetId: string) => Promise<void>;
   refreshData: () => Promise<void>;
 }
 
 const DEFAULT_SETTINGS: UserSettings = {
-  theme: 'midnight-cyber',
+  theme: 'kinetic-volt',
   soundEnabled: true,
   hapticEnabled: true,
   voiceEnabled: false,
@@ -359,7 +359,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const updatedUser = { ...user, ...profile };
     setUser(updatedUser);
     await ds.saveUser(updatedUser);
-  }, [user]);
+  }, [user, workoutPresets]);
 
   const addPersonalRecord = useCallback(async (record: Omit<PersonalRecord, 'id' | 'achievedAt'>) => {
     if (!user) return;
@@ -391,20 +391,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await ds.deletePersonalRecord(user.id, recordId);
   }, [user]);
 
-  const saveWorkoutPreset = useCallback(async (preset: Omit<WorkoutPreset, 'id' | 'userId' | 'createdAt' | 'updatedAt'>) => {
+  const saveWorkoutPreset = useCallback(async (preset: Omit<WorkoutPreset, 'id' | 'userId' | 'createdAt' | 'updatedAt'> & { id?: string }) => {
     const userId = user?.id || 'guest';
     const ds = getDataStore(user?.isGuest ?? true);
+    const createdAt = preset.id
+      ? workoutPresets.find((p) => p.id === preset.id)?.createdAt ?? new Date()
+      : new Date();
     
     const newPreset: WorkoutPreset = {
       ...preset,
-      id: generateId(),
+      id: preset.id ?? generateId(),
       userId,
-      createdAt: new Date(),
+      createdAt,
       updatedAt: new Date(),
     };
     
-    setWorkoutPresets(prev => [...prev, newPreset]);
+    setWorkoutPresets(prev => {
+      const existingIndex = prev.findIndex((p) => p.id === newPreset.id);
+      if (existingIndex >= 0) {
+        const updated = [...prev];
+        updated[existingIndex] = newPreset;
+        return updated;
+      }
+      return [newPreset, ...prev];
+    });
     await ds.saveWorkoutPreset(newPreset);
+    const refreshedPresets = await ds.getWorkoutPresets(userId);
+    setWorkoutPresets(refreshedPresets);
   }, [user]);
 
   const deleteWorkoutPreset = useCallback(async (presetId: string) => {

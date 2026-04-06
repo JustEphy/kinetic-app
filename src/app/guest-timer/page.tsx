@@ -65,6 +65,12 @@ export default function GuestTimerPage() {
     return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
+  const formatDurationWords = (totalSeconds: number) => {
+    const mins = Math.floor(totalSeconds / 60);
+    const secs = totalSeconds % 60;
+    return `${mins}min ${secs}sec`;
+  };
+
   // Normal timer handlers
   const startTimer = useCallback(() => {
     if (timerType === 'countdown') {
@@ -158,6 +164,7 @@ export default function GuestTimerPage() {
         totalDuration: totalMinutes,
       });
       setWorkoutName(result.workout.name);
+      setTotalMinutes(Math.max(1, Math.ceil(result.workout.totalDuration / 60)));
       setIntervals(result.workout.intervals as Interval[]);
       setIntervalMode('advanced');
     } catch (error) {
@@ -288,9 +295,17 @@ export default function GuestTimerPage() {
   const workSeconds = intervalMode === 'simple'
     ? totalMinutes * 60
     : intervals.filter((i) => i.type === 'work' || i.type === 'warmup').reduce((sum, i) => sum + i.duration, 0);
+  const restSeconds = intervalMode === 'simple'
+    ? 0
+    : intervals.filter((i) => i.type === 'rest').reduce((sum, i) => sum + i.duration, 0);
   const intensity = totalSeconds > 0 ? Math.round((workSeconds / totalSeconds) * 100) : 0;
-  const estimatedCalories = Math.round((totalSeconds / 60) * (8 + (intensity / 100) * 7));
   const numSimpleIntervals = simpleIntervalTotal > 0 ? Math.ceil(totalSeconds / simpleIntervalTotal) : 0;
+  const workoutBlockCount = intervalMode === 'simple'
+    ? numSimpleIntervals
+    : intervals.filter((i) => i.type === 'work' || i.type === 'warmup').length;
+  const restBlockCount = intervalMode === 'simple'
+    ? 0
+    : intervals.filter((i) => i.type === 'rest').length;
   const targetDurationSeconds = totalMinutes * 60;
   const actualDurationSeconds = intervals.reduce((sum, i) => sum + i.duration, 0);
   const durationDiff = actualDurationSeconds - targetDurationSeconds;
@@ -299,11 +314,17 @@ export default function GuestTimerPage() {
   return (
     <div className="min-h-screen bg-background relative overflow-hidden px-6 py-8">
       <div className="max-w-5xl mx-auto">
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center justify-between mb-4">
           <Link href="/" className="inline-flex items-center gap-2 text-on-surface-variant hover:text-on-surface">
             <span className="material-symbols-outlined">arrow_back</span>
             Back
           </Link>
+          <button onClick={() => router.push('/auth/signin')} className="text-sm font-bold text-secondary hover:opacity-80">
+            Sign In
+          </button>
+        </div>
+
+        <div className="flex justify-center mb-8">
           <div className="inline-flex p-1 bg-surface-container-low rounded-full">
             <button
               className={`px-5 py-2 rounded-full text-sm font-bold transition-colors ${guestMode === 'normal' ? 'bg-primary text-on-primary' : 'text-on-surface-variant hover:text-on-surface'}`}
@@ -321,9 +342,6 @@ export default function GuestTimerPage() {
               Interval Timer
             </button>
           </div>
-          <button onClick={() => router.push('/auth/signin')} className="text-sm font-bold text-secondary hover:opacity-80">
-            Sign In
-          </button>
         </div>
 
         {guestMode === 'normal' && (
@@ -345,11 +363,11 @@ export default function GuestTimerPage() {
                   </div>
                 </div>
                 {timerType === 'countdown' ? (
-                  <div className="flex justify-center items-center gap-4 mb-12">
+                  <div className="flex justify-center items-center gap-2 md:gap-4 mb-12">
                     <NumberInput value={hours} onChange={setHours} max={23} label="Hours" />
-                    <span className="text-5xl font-black text-primary mt-6">:</span>
+                    <span className="text-4xl md:text-5xl font-black text-primary leading-none">:</span>
                     <NumberInput value={minutes} onChange={setMinutes} max={59} label="Minutes" />
-                    <span className="text-5xl font-black text-primary mt-6">:</span>
+                    <span className="text-4xl md:text-5xl font-black text-primary leading-none">:</span>
                     <NumberInput value={seconds} onChange={setSeconds} max={59} label="Seconds" />
                   </div>
                 ) : (
@@ -604,12 +622,31 @@ export default function GuestTimerPage() {
                     <div className="space-y-4">
                       <div className="flex justify-between items-center"><span className="text-on-surface-variant">Target Duration</span><span className="text-on-surface-variant">{totalMinutes} min</span></div>
                       <div className="flex justify-between items-center"><span className="text-on-surface-variant">Actual Time</span><span className={`font-bold ${hasDurationMismatch ? (durationDiff > 0 ? 'text-error' : 'text-warning') : 'text-secondary'}`}>{formatTime(totalSeconds)}</span></div>
-                      <div className="flex justify-between items-center"><span className="text-on-surface-variant">Work Blocks</span><span className="text-primary font-bold">{intervalMode === 'simple' ? numSimpleIntervals : intervals.filter((i) => i.type === 'work').length}</span></div>
-                      <div className="flex justify-between items-center"><span className="text-on-surface-variant">Rest Blocks</span><span className="text-secondary font-bold">{intervalMode === 'simple' ? 0 : intervals.filter((i) => i.type === 'rest').length}</span></div>
-                      <div className="pt-4 mt-4 border-t border-outline-variant/20">
-                        <div className="flex justify-between items-center mb-2"><span className="text-on-surface-variant text-sm">Est. Calories</span><span className="text-xl font-black text-primary">{estimatedCalories}</span></div>
-                      </div>
+                      <div className="flex justify-between items-center"><span className="text-on-surface-variant">Workout Blocks</span><span className="text-primary font-bold">{workoutBlockCount} workout blocks : ({formatDurationWords(workSeconds)})</span></div>
+                      <div className="flex justify-between items-center"><span className="text-on-surface-variant">Rest Blocks</span><span className="text-secondary font-bold">{restBlockCount} rest blocks : ({formatDurationWords(restSeconds)})</span></div>
                     </div>
+                    {hasDurationMismatch && (
+                      <div className={`mt-4 p-3 rounded-lg ${durationDiff > 0 ? 'bg-error/10 border border-error/30' : 'bg-warning/10 border border-warning/30'}`}>
+                        <div className="flex items-start gap-2">
+                          <span className={`material-symbols-outlined text-sm ${durationDiff > 0 ? 'text-error' : 'text-warning'}`}>
+                            {durationDiff > 0 ? 'schedule' : 'hourglass_empty'}
+                          </span>
+                          <div className="flex-1">
+                            <p className={`text-xs font-medium ${durationDiff > 0 ? 'text-error' : 'text-warning'}`}>
+                              {durationDiff > 0
+                                ? `${formatTime(Math.abs(durationDiff))} over target`
+                                : `${formatTime(Math.abs(durationDiff))} under target`}
+                            </p>
+                            <button
+                              onClick={() => setTotalMinutes(Math.ceil(actualDurationSeconds / 60))}
+                              className={`mt-2 text-xs font-bold underline ${durationDiff > 0 ? 'text-error hover:text-error/80' : 'text-warning hover:text-warning/80'}`}
+                            >
+                              Update target to {Math.ceil(actualDurationSeconds / 60)} min
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                     <button
                       onClick={handleStartIntervalWorkout}
                       className="w-full mt-6 kinetic-gradient py-4 rounded-full font-black uppercase tracking-widest text-sm hover:brightness-110 active:scale-95 transition-all shadow-[0_0_20px_rgba(255,138,169,0.2)]"
@@ -655,10 +692,40 @@ function NumberInput({
   max: number;
   label: string;
 }) {
+  const wheelValues = Array.from({ length: max + 1 }, (_, i) => i);
+  const listRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const container = listRef.current;
+    if (!container) return;
+    const target = container.querySelector<HTMLButtonElement>(`[data-value="${value}"]`);
+    if (!target) return;
+    const top = target.offsetTop - (container.clientHeight / 2) + (target.clientHeight / 2);
+    container.scrollTo({ top, behavior: 'smooth' });
+  }, [value]);
+
   return (
     <div className="text-center">
-      <div className="w-24 h-24 rounded-2xl bg-surface-container flex items-center justify-center mb-2">
-        <input type="number" min={0} max={max} value={value} onChange={(e) => onChange(Math.max(0, Math.min(max, parseInt(e.target.value) || 0)))} className="w-full text-center text-3xl font-black bg-transparent outline-none appearance-none" />
+      <div className="w-20 md:w-24 rounded-2xl bg-surface-container p-2 mb-2">
+        <div
+          ref={listRef}
+          className="number-picker relative h-24 overflow-y-auto rounded-lg bg-surface-container-high snap-y snap-mandatory"
+        >
+          <div className="pointer-events-none sticky top-8 h-8 border-y border-primary/30 bg-primary/10 z-10" />
+          {wheelValues.map((item) => (
+            <button
+              key={item}
+              data-value={item}
+              type="button"
+              onClick={() => onChange(item)}
+              className={`w-full h-8 text-sm font-bold transition-colors snap-center ${
+                item === value ? 'text-on-surface' : 'text-on-surface-variant/50 hover:text-on-surface'
+              }`}
+            >
+              {item.toString().padStart(2, '0')}
+            </button>
+          ))}
+        </div>
       </div>
       <p className="text-xs uppercase tracking-widest text-on-surface-variant">{label}</p>
     </div>
