@@ -36,14 +36,11 @@ function SignInForm() {
     setIsSubmitting(true);
     try {
       if (mode === 'signin') {
-        console.log('[SIGNIN] Attempting sign in...');
         await signInWithEmail(email, password);
-        console.log('[SIGNIN] Sign in successful, waiting for session...');
         
         // Give the auth state listener time to process the session
         await new Promise(resolve => setTimeout(resolve, 500));
         
-        console.log('[SIGNIN] Redirecting to /home');
         router.push('/home');
         return;
       }
@@ -52,7 +49,6 @@ function SignInForm() {
       alert('Account created! Check your email to confirm, then sign in.');
       setMode('signin');
     } catch (error) {
-      console.error('[SIGNIN] Error:', error);
       const message = error instanceof Error
         ? error.message
         : 'Authentication failed. Check your email/password or Supabase auth settings.';

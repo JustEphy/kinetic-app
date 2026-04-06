@@ -178,12 +178,6 @@ export default function WorkoutsPage() {
     const actualDurationSeconds = currentIntervals.reduce((sum, i) => sum + i.duration, 0);
     const actualDurationMinutes = Math.ceil(actualDurationSeconds / 60);
     
-    console.log('[PRESET-SAVE] Starting save...', {
-      name: presetName,
-      intervalCount: currentIntervals.length,
-      duration: actualDurationMinutes,
-    });
-    
     try {
       // Add timeout wrapper to prevent infinite hangs
       const savePromise = saveWorkoutPreset({
@@ -200,8 +194,6 @@ export default function WorkoutsPage() {
       
       await Promise.race([savePromise, timeoutPromise]);
       
-      console.log('[PRESET-SAVE] Save successful!');
-      
       // Successfully saved - close modal and reset state
       setShowSavePreset(false);
       setEditingPresetId(null);
@@ -209,9 +201,8 @@ export default function WorkoutsPage() {
       setPresetDescription('');
       setPresetError(null);
     } catch (error) {
-      console.error('[PRESET-SAVE] Save failed:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      setPresetError(`Save failed: ${errorMessage}. Try again or check browser console.`);
+      setPresetError(`Save failed: ${errorMessage}. Please try again.`);
     } finally {
       setIsSavingPreset(false);
     }

@@ -69,16 +69,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [workoutPresets, setWorkoutPresets] = useState<WorkoutPreset[]>([]);
   const authInitRef = useRef(false);
   const signingOutRef = useRef(false);
-  const authDebugEnabled = process.env.NEXT_PUBLIC_AUTH_DEBUG === 'true';
-  const authDebug = (label: string, details?: unknown) => {
-    if (!authDebugEnabled) return;
-    const timestamp = new Date().toISOString();
-    if (details !== undefined) {
-      console.info(`[auth-debug ${timestamp}] ${label}`, details);
-      return;
-    }
-    console.info(`[auth-debug ${timestamp}] ${label}`);
-  };
 
   const isGuest = user?.isGuest ?? true;
   const dataStore = getDataStore(isGuest);
@@ -130,24 +120,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // Check for existing session first
     const initSession = async () => {
-      authDebug('auth-init:checking-session');
       try {
         const { data: { session }, error } = await supabase.auth.getSession();
         
         if (error) {
-          console.error('[AUTH] Session check error:', error);
-          authDebug('auth-init:session-error', error);
+          console.error('Session check error:', error);
           // Clear stale data
           await supabase.auth.signOut({ scope: 'local' });
           if (isMounted) setIsLoading(false);
           return;
         }
-
-        authDebug('auth-init:session-result', {
-          hasSession: !!session,
-          userId: session?.user?.id,
-          expiresAt: session?.expires_at ? new Date(session.expires_at * 1000).toISOString() : null,
-        });
 
         if (session?.user && isMounted) {
           const mappedUser = mapSupabaseUser(session.user);
@@ -158,7 +140,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         
         if (isMounted) setIsLoading(false);
       } catch (error) {
-        console.error('[AUTH] Init error:', error);
+        console.error('Auth init error:', error);
         if (isMounted) setIsLoading(false);
       }
     };
@@ -168,14 +150,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Keep callback synchronous; defer async work to avoid auth deadlocks.
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (!isMounted) return;
-      authDebug('onAuthStateChange:received', {
-        event,
-        hasSession: !!session,
-        userId: session?.user?.id ?? null,
-      });
 
       if (event === 'SIGNED_OUT' && signingOutRef.current) {
-        authDebug('onAuthStateChange:handling-signout');
         setUser(null);
         setSupabaseUser(null);
         setSettings(DEFAULT_SETTINGS);
@@ -198,14 +174,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           void (async () => {
             try {
               await loadUserData(session.user.id, false);
-              authDebug('onAuthStateChange:loaded-user-data', {
-                event,
-                userId: session.user.id,
-                durationMs: Math.round(performance.now() - loadStartedAt),
-              });
             } catch (error) {
               console.error('Auth state change error:', error);
-              authDebug('onAuthStateChange:error', error);
             } finally {
               if (isMounted) setIsLoading(false);
             }
@@ -215,7 +185,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       if (event === 'INITIAL_SESSION' || event === 'SIGNED_OUT') {
-        authDebug('onAuthStateChange:guest-state');
         setUser(null);
         setSupabaseUser(null);
         setSettings(DEFAULT_SETTINGS);
@@ -230,7 +199,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               setWorkoutPresets(guestPresets);
             } catch (error) {
               console.error('Auth state change error:', error);
-              authDebug('onAuthStateChange:error', error);
             } finally {
               if (isMounted) setIsLoading(false);
             }
@@ -245,7 +213,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Safety valve: never leave UI in loading state
     const loadingTimeout = window.setTimeout(() => {
       if (isMounted) {
-        authDebug('auth-loading-safety-timeout-fired');
         setIsLoading(false);
       }
     }, 5000);
@@ -259,8 +226,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signInWithEmail = useCallback(async (email: string, password: string) => {
     const supabase = getSupabase();
-    const signInStartedAt = performance.now();
-    authDebug('signInWithEmail:start', { email });
     setIsLoading(true);
 
     try {
@@ -270,32 +235,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
 
       if (error) {
-        console.error('[AUTH] Email sign-in error:', error);
-        authDebug('signInWithEmail:error', {
-          email,
-          durationMs: Math.round(performance.now() - signInStartedAt),
-          message: error.message,
-        });
+        console.error('Email sign-in error:', error);
         setIsLoading(false);
         throw error;
       }
-
-      authDebug('signInWithEmail:success', {
-        email,
-        userId: data.user?.id,
-        hasSession: !!data.session,
-        durationMs: Math.round(performance.now() - signInStartedAt),
-      });
     } catch (error) {
-      console.error('[AUTH] Email sign-in catch:', error);
-      authDebug('signInWithEmail:catch', {
-        email,
-        durationMs: Math.round(performance.now() - signInStartedAt),
-      });
+      console.error('Email sign-in error:', error);
       setIsLoading(false);
       throw error;
     }
-  }, [authDebug]);
+  }, []);
 
   const signUpWithEmail = useCallback(async (email: string, password: string, name?: string) => {
     const supabase = getSupabase();
@@ -459,14 +408,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const saveWorkoutPreset = useCallback(async (preset: Omit<WorkoutPreset, 'id' | 'userId' | 'createdAt' | 'updatedAt'> & { id?: string }) => {
     const userId = user?.id || 'guest';
     const isGuest = user?.isGuest ?? true;
-    
-    console.log('[AUTH-CONTEXT] saveWorkoutPreset called', {
-      userId,
-      isGuest,
-      hasUser: !!user,
-      presetName: preset.name,
-    });
-    
+
     const ds = getDataStore(isGuest);
     const createdAt = preset.id
       ? workoutPresets.find((p) => p.id === preset.id)?.createdAt ?? new Date()
@@ -480,12 +422,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       updatedAt: new Date(),
     };
     
-    console.log('[AUTH-CONTEXT] Preset prepared', {
-      id: newPreset.id,
-      userId: newPreset.userId,
-      dataStore: isGuest ? 'localStorage' : 'supabase',
-    });
-    
     // Optimistically update local state first (instant UI feedback)
     setWorkoutPresets(prev => {
       const existingIndex = prev.findIndex((p) => p.id === newPreset.id);
@@ -498,9 +434,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
     
     // Save to database (this is the slow part on free tier)
-    console.log('[AUTH-CONTEXT] Calling dataStore.saveWorkoutPreset...');
     await ds.saveWorkoutPreset(newPreset);
-    console.log('[AUTH-CONTEXT] dataStore.saveWorkoutPreset completed successfully');
     
     // Skip the refresh - we already have the correct local state
     // This cuts latency in half on Supabase free tier
