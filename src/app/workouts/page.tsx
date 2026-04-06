@@ -38,6 +38,7 @@ export default function WorkoutsPage() {
   const [presetDescription, setPresetDescription] = useState('');
   const [editingPresetId, setEditingPresetId] = useState<string | null>(null);
   const [presetError, setPresetError] = useState<string | null>(null);
+  const [isSavingPreset, setIsSavingPreset] = useState(false);
   const [isPresetsModalOpen, setIsPresetsModalOpen] = useState(false);
   const { isSupported: speechSupported, isListening, error: speechError, toggleListening } = useSpeechToText(
     (text) => setAiPrompt(text)
@@ -165,8 +166,9 @@ export default function WorkoutsPage() {
   }, [workoutPresets]);
 
   const handleSaveAsPreset = async () => {
-    if (!presetName.trim()) return;
+    if (!presetName.trim() || isSavingPreset) return;
     setPresetError(null);
+    setIsSavingPreset(true);
     
     const currentIntervals = intervalMode === 'simple' 
       ? generateSimpleIntervals()
@@ -176,8 +178,15 @@ export default function WorkoutsPage() {
     const actualDurationSeconds = currentIntervals.reduce((sum, i) => sum + i.duration, 0);
     const actualDurationMinutes = Math.ceil(actualDurationSeconds / 60);
     
+    console.log('[PRESET-SAVE] Starting save...', {
+      name: presetName,
+      intervalCount: currentIntervals.length,
+      duration: actualDurationMinutes,
+    });
+    
     try {
-      await saveWorkoutPreset({
+      // Add timeout wrapper to prevent infinite hangs
+      const savePromise = saveWorkoutPreset({
         ...(editingPresetId ? { id: editingPresetId } : {}),
         name: presetName,
         description: presetDescription || undefined,
@@ -185,13 +194,26 @@ export default function WorkoutsPage() {
         intervals: currentIntervals,
       });
       
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Save timed out after 15 seconds')), 15000)
+      );
+      
+      await Promise.race([savePromise, timeoutPromise]);
+      
+      console.log('[PRESET-SAVE] Save successful!');
+      
+      // Successfully saved - close modal and reset state
       setShowSavePreset(false);
       setEditingPresetId(null);
       setPresetName('');
       setPresetDescription('');
+      setPresetError(null);
     } catch (error) {
-      console.error('Preset save error:', error);
-      setPresetError('Could not save preset. Please try again.');
+      console.error('[PRESET-SAVE] Save failed:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      setPresetError(`Save failed: ${errorMessage}. Try again or check browser console.`);
+    } finally {
+      setIsSavingPreset(false);
     }
   };
 
@@ -767,9 +789,11 @@ export default function WorkoutsPage() {
             <div className="flex gap-3 mt-6">
               <button
                 onClick={() => {
+                  console.log('[PRESET-MODAL] Cancel clicked, forcing close');
                   setShowSavePreset(false);
                   setEditingPresetId(null);
                   setPresetError(null);
+                  setIsSavingPreset(false); // Force reset saving state
                 }}
                 className="flex-1 py-3 rounded-full bg-surface-container text-on-surface-variant font-bold hover:bg-surface-container-high transition-colors"
               >
@@ -777,10 +801,17 @@ export default function WorkoutsPage() {
               </button>
               <button
                 onClick={handleSaveAsPreset}
-                disabled={!presetName.trim()}
-                className="flex-1 py-3 rounded-full bg-primary text-on-primary font-bold hover:brightness-110 transition-all disabled:opacity-50"
+                disabled={!presetName.trim() || isSavingPreset}
+                className="flex-1 py-3 rounded-full bg-primary text-on-primary font-bold hover:brightness-110 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
               >
-                {editingPresetId ? 'Update' : 'Save'}
+                {isSavingPreset ? (
+                  <>
+                    <span className="material-symbols-outlined animate-spin text-lg">progress_activity</span>
+                    Saving...
+                  </>
+                ) : (
+                  editingPresetId ? 'Update' : 'Save'
+                )}
               </button>
             </div>
           </div>

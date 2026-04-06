@@ -372,7 +372,13 @@ export const supabaseDataStore: DataStore = {
   async saveWorkoutPreset(preset: WorkoutPreset): Promise<void> {
     const supabase = getSupabase();
     
-    await supabase.from('workout_presets').upsert({
+    console.log('[SUPABASE-DATASTORE] saveWorkoutPreset called', {
+      presetId: preset.id,
+      userId: preset.userId,
+      name: preset.name,
+    });
+    
+    const { data, error } = await supabase.from('workout_presets').upsert({
       id: preset.id,
       user_id: preset.userId,
       name: preset.name,
@@ -381,12 +387,26 @@ export const supabaseDataStore: DataStore = {
       intervals: preset.intervals,
       is_default: preset.isDefault || false,
       updated_at: new Date().toISOString(),
-    });
+    }).select();
+    
+    console.log('[SUPABASE-DATASTORE] Upsert response', { data, error });
+    
+    if (error) {
+      console.error('[SUPABASE-DATASTORE] Failed to save workout preset:', error);
+      throw new Error(`Failed to save preset: ${error.message}`);
+    }
+    
+    console.log('[SUPABASE-DATASTORE] Preset saved successfully');
   },
 
   async deleteWorkoutPreset(id: string): Promise<void> {
     const supabase = getSupabase();
-    await supabase.from('workout_presets').delete().eq('id', id);
+    const { error } = await supabase.from('workout_presets').delete().eq('id', id);
+    
+    if (error) {
+      console.error('Failed to delete workout preset:', error);
+      throw new Error(`Failed to delete preset: ${error.message}`);
+    }
   },
 
   // User Profile

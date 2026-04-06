@@ -2,7 +2,8 @@
 
 import React, { createContext, useContext, useState, useCallback, useRef, useEffect } from 'react';
 import { Workout, WorkoutInterval, WorkoutSession } from '@/types';
-import { generateId, dataStore } from '@/lib/db';
+import { generateId, dataStore as localDataStore } from '@/lib/db';
+import { supabaseDataStore } from '@/lib/supabase/dataStore';
 import { notify, audioManager, triggerHaptic } from '@/lib/audio';
 
 interface WorkoutContextType {
@@ -40,6 +41,9 @@ interface WorkoutContextType {
 
 const WorkoutContext = createContext<WorkoutContextType | null>(null);
 
+// Get appropriate data store based on auth state
+const getDataStore = (isGuest: boolean) => isGuest ? localDataStore : supabaseDataStore;
+
 export function WorkoutProvider({ children }: { children: React.ReactNode }) {
   const [workout, setWorkoutState] = useState<Workout | null>(null);
   const [session, setSession] = useState<WorkoutSession | null>(null);
@@ -54,6 +58,34 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
   
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const lastTickRef = useRef<number>(0);
+  
+  // Track auth state for data store selection (can't use useAuth due to context hierarchy)
+  const [isGuest, setIsGuest] = useState(true);
+  
+  // Listen for auth changes via storage events or manual updates
+  useEffect(() => {
+    // Check if user is authenticated by looking for Supabase session
+    const checkAuth = () => {
+      if (typeof window === 'undefined') return;
+      const hasAuthToken = Object.keys(localStorage).some(
+        (key) => key.startsWith('sb-') && key.includes('-auth-token')
+      );
+      setIsGuest(!hasAuthToken);
+    };
+    
+    checkAuth();
+    window.addEventListener('storage', checkAuth);
+    
+    // Also recheck on visibility change (user might have logged in/out in another tab)
+    document.addEventListener('visibilitychange', checkAuth);
+    
+    return () => {
+      window.removeEventListener('storage', checkAuth);
+      document.removeEventListener('visibilitychange', checkAuth);
+    };
+  }, []);
+  
+  const dataStore = getDataStore(isGuest);
 
   // Computed values
   const currentInterval = workout?.intervals[currentIntervalIndex] || null;
@@ -142,7 +174,7 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
       
       return newTime;
     });
-  }, [workout, currentInterval, currentIntervalIndex, soundEnabled, hapticEnabled, session, elapsedTime]);
+  }, [workout, currentInterval, currentIntervalIndex, soundEnabled, hapticEnabled, session, elapsedTime, dataStore]);
 
   // Timer effect
   useEffect(() => {
@@ -249,7 +281,7 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
       dataStore.saveSession(endedSession);
       setSession(null);
     }
-  }, [session, elapsedTime]);
+  }, [session, elapsedTime, dataStore]);
 
   const skipInterval = useCallback(() => {
     if (!workout) return;

@@ -10,7 +10,8 @@ import { haptics } from '@/lib/audio';
 export default function TimerPage() {
   const router = useRouter();
   const hasAutoStartedRef = useRef(false);
-  const { settings } = useAuth();
+  const hasLoggedCompletionRef = useRef(false);
+  const { settings, stats, updateStats } = useAuth();
   const {
     workout,
     currentInterval,
@@ -85,6 +86,7 @@ export default function TimerPage() {
 
   useEffect(() => {
     hasAutoStartedRef.current = false;
+    hasLoggedCompletionRef.current = false;
   }, [workout?.id]);
 
   // Auto-start workout
@@ -98,16 +100,30 @@ export default function TimerPage() {
     }
   }, [workout, isRunning, isPaused, elapsedTime, progress, startWorkout]);
 
-  // Auto-return to builder when workout completes naturally.
+  // Auto-return to builder when workout completes naturally + update stats.
   useEffect(() => {
     if (!workout) return;
     if (isRunning) return;
     if (isPaused) return;
     if (!currentInterval) return;
     if (progress < 100) return;
-    console.info('Workout finished. Returning to workout builder.');
+    if (hasLoggedCompletionRef.current) return;
+    
+    hasLoggedCompletionRef.current = true;
+    console.info('Workout finished. Logging completion and returning to workout builder.');
+    
+    // Update user stats
+    const workoutMinutes = Math.round(elapsedTime / 60);
+    const estimatedCalories = Math.round((elapsedTime / 60) * 8); // rough estimate
+    
+    void updateStats({
+      workoutsCompleted: stats.workoutsCompleted + 1,
+      lifetimeTotalTime: stats.lifetimeTotalTime + workoutMinutes,
+      totalCaloriesBurnt: stats.totalCaloriesBurnt + estimatedCalories,
+    });
+    
     router.push('/workouts');
-  }, [workout, isRunning, isPaused, currentInterval, progress, router]);
+  }, [workout, isRunning, isPaused, currentInterval, progress, router, elapsedTime, stats, updateStats]);
 
   if (!workout || !currentInterval) {
     return (
@@ -118,6 +134,18 @@ export default function TimerPage() {
   }
 
   const handleEnd = () => {
+    // Update stats for manually ended workout (partial completion)
+    if (elapsedTime > 0) {
+      const workoutMinutes = Math.round(elapsedTime / 60);
+      const estimatedCalories = Math.round((elapsedTime / 60) * 8);
+      
+      void updateStats({
+        workoutsCompleted: stats.workoutsCompleted + 1,
+        lifetimeTotalTime: stats.lifetimeTotalTime + workoutMinutes,
+        totalCaloriesBurnt: stats.totalCaloriesBurnt + estimatedCalories,
+      });
+    }
+    
     endWorkout();
     router.push('/workouts');
   };

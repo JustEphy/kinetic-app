@@ -393,7 +393,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const saveWorkoutPreset = useCallback(async (preset: Omit<WorkoutPreset, 'id' | 'userId' | 'createdAt' | 'updatedAt'> & { id?: string }) => {
     const userId = user?.id || 'guest';
-    const ds = getDataStore(user?.isGuest ?? true);
+    const isGuest = user?.isGuest ?? true;
+    
+    console.log('[AUTH-CONTEXT] saveWorkoutPreset called', {
+      userId,
+      isGuest,
+      hasUser: !!user,
+      presetName: preset.name,
+    });
+    
+    const ds = getDataStore(isGuest);
     const createdAt = preset.id
       ? workoutPresets.find((p) => p.id === preset.id)?.createdAt ?? new Date()
       : new Date();
@@ -406,6 +415,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       updatedAt: new Date(),
     };
     
+    console.log('[AUTH-CONTEXT] Preset prepared', {
+      id: newPreset.id,
+      userId: newPreset.userId,
+      dataStore: isGuest ? 'localStorage' : 'supabase',
+    });
+    
+    // Optimistically update local state first (instant UI feedback)
     setWorkoutPresets(prev => {
       const existingIndex = prev.findIndex((p) => p.id === newPreset.id);
       if (existingIndex >= 0) {
@@ -415,14 +431,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       return [newPreset, ...prev];
     });
+    
+    // Save to database (this is the slow part on free tier)
+    console.log('[AUTH-CONTEXT] Calling dataStore.saveWorkoutPreset...');
     await ds.saveWorkoutPreset(newPreset);
-    try {
-      const refreshedPresets = await ds.getWorkoutPresets(userId);
-      setWorkoutPresets(refreshedPresets);
-    } catch (error) {
-      console.warn('Preset refresh warning (save succeeded):', error);
-    }
-  }, [user]);
+    console.log('[AUTH-CONTEXT] dataStore.saveWorkoutPreset completed successfully');
+    
+    // Skip the refresh - we already have the correct local state
+    // This cuts latency in half on Supabase free tier
+  }, [user, workoutPresets]);
 
   const deleteWorkoutPreset = useCallback(async (presetId: string) => {
     const ds = getDataStore(user?.isGuest ?? true);
