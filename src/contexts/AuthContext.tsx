@@ -240,26 +240,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsLoading(true);
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
       if (error) {
-        console.error('Email sign-in error:', error);
+        console.error('[AUTH] Email sign-in error:', error);
         authDebug('signInWithEmail:error', {
           email,
           durationMs: Math.round(performance.now() - signInStartedAt),
           message: error.message,
         });
+        setIsLoading(false);
         throw error;
       }
+      
+      console.log('[AUTH] Sign in successful', {
+        userId: data.user?.id,
+        hasSession: !!data.session,
+      });
+      
       authDebug('signInWithEmail:success', {
         email,
+        userId: data.user?.id,
         durationMs: Math.round(performance.now() - signInStartedAt),
       });
+      
+      // Session will be picked up by onAuthStateChange listener
+      // which will call setIsLoading(false) and load user data
     } catch (error) {
-      console.error('Email sign-in error:', error);
+      console.error('[AUTH] Email sign-in catch:', error);
       authDebug('signInWithEmail:catch', {
         email,
         durationMs: Math.round(performance.now() - signInStartedAt),
