@@ -128,6 +128,43 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const supabase = getSupabase();
     let isMounted = true;
 
+    // Check for existing session first
+    const initSession = async () => {
+      authDebug('auth-init:checking-session');
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        
+        if (error) {
+          console.error('[AUTH] Session check error:', error);
+          authDebug('auth-init:session-error', error);
+          // Clear stale data
+          await supabase.auth.signOut({ scope: 'local' });
+          if (isMounted) setIsLoading(false);
+          return;
+        }
+
+        authDebug('auth-init:session-result', {
+          hasSession: !!session,
+          userId: session?.user?.id,
+          expiresAt: session?.expires_at ? new Date(session.expires_at * 1000).toISOString() : null,
+        });
+
+        if (session?.user && isMounted) {
+          const mappedUser = mapSupabaseUser(session.user);
+          setUser(mappedUser);
+          setSupabaseUser(session.user);
+          await loadUserData(session.user.id, false);
+        }
+        
+        if (isMounted) setIsLoading(false);
+      } catch (error) {
+        console.error('[AUTH] Init error:', error);
+        if (isMounted) setIsLoading(false);
+      }
+    };
+
+    initSession();
+
     // Listen for auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!isMounted) return;

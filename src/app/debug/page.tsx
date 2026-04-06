@@ -163,11 +163,17 @@ export default function DebugPage() {
           
           <button
             onClick={testPresetSave}
-            disabled={testing || !supabaseSession}
+            disabled={testing}
             className="px-6 py-3 bg-primary text-on-primary rounded-full font-bold hover:brightness-110 disabled:opacity-50"
           >
             {testing ? 'Testing...' : 'Run Database Test'}
           </button>
+          
+          {!supabaseSession && (
+            <p className="text-error mt-2 text-sm">
+              ⚠️ No Supabase session found. The test will likely fail. Try signing out and back in.
+            </p>
+          )}
 
           {testResult && (
             <div className={`mt-4 p-4 rounded-lg ${testResult.success ? 'bg-green-900/20' : 'bg-red-900/20'}`}>
