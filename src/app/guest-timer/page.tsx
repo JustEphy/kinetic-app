@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { audioManager, haptics, notify } from '@/lib/audio';
 import WorkoutIntervalTimerView from '@/components/WorkoutIntervalTimerView';
 import { WorkoutInterval } from '@/types';
@@ -15,9 +15,11 @@ type IntervalMode = 'simple' | 'advanced';
 type Interval = WorkoutInterval;
 
 const DURATION_PRESETS = [15, 30, 45, 60, 90, 120];
+const GUEST_AI_WORKOUT_KEY = 'kinetic_guest_ai_workout';
 
 export default function GuestTimerPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [guestMode, setGuestMode] = useState<GuestMode>('normal');
 
   // Normal timer state
@@ -52,6 +54,56 @@ export default function GuestTimerPage() {
   useEffect(() => {
     audioManager.init();
   }, []);
+
+  useEffect(() => {
+    if (searchParams.get('tab') === 'interval') {
+      setGuestMode('interval');
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const raw = sessionStorage.getItem(GUEST_AI_WORKOUT_KEY);
+    if (!raw) return;
+
+    try {
+      const parsed = JSON.parse(raw) as {
+        name?: string;
+        totalDuration?: number;
+        intervals?: Array<{
+          id?: string;
+          type: WorkoutInterval['type'];
+          duration: number;
+          name?: string;
+          description?: string;
+        }>;
+      };
+
+      if (!parsed.intervals || parsed.intervals.length === 0) return;
+
+      const hydratedIntervals: Interval[] = parsed.intervals.map((interval) => ({
+        id: interval.id || generateId(),
+        type: interval.type,
+        duration: interval.duration,
+        name: interval.name || 'Workout Block',
+        description: interval.description || '',
+      }));
+
+      setGuestMode('interval');
+      setWorkoutName(parsed.name || 'AI Workout');
+      setIntervals(hydratedIntervals);
+      setIntervalMode('advanced');
+      setTotalMinutes(Math.max(1, Math.ceil((parsed.totalDuration || hydratedIntervals.reduce((sum, i) => sum + i.duration, 0)) / 60)));
+      setIsSetup(true);
+      setIsIntervalRunning(false);
+      setIsPaused(false);
+      setCurrentIntervalIndex(0);
+      setIntervalElapsed(0);
+      setTotalElapsed(0);
+    } finally {
+      sessionStorage.removeItem(GUEST_AI_WORKOUT_KEY);
+    }
+  }, [searchParams]);
 
   const totalSetTime = hours * 3600 + minutes * 60 + seconds;
 

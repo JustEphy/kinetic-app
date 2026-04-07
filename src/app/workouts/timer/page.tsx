@@ -11,7 +11,7 @@ export default function TimerPage() {
   const router = useRouter();
   const hasAutoStartedRef = useRef(false);
   const hasLoggedCompletionRef = useRef(false);
-  const { settings, stats, updateStats } = useAuth();
+  const { user, isGuest, isLoading, settings, stats, updateStats } = useAuth();
   const {
     workout,
     currentInterval,
@@ -37,6 +37,13 @@ export default function TimerPage() {
     setSoundEnabled(settings.soundEnabled ?? true);
     setHapticEnabled(settings.hapticEnabled ?? true);
   }, [settings.soundEnabled, settings.hapticEnabled, setSoundEnabled, setHapticEnabled]);
+
+  useEffect(() => {
+    if (isLoading) return;
+    if (!user || isGuest) {
+      router.replace('/guest-timer');
+    }
+  }, [isLoading, user, isGuest, router]);
 
   useEffect(() => {
     if (!settings.hapticEnabled || !lastTransitionAt) return;

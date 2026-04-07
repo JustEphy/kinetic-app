@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSpeechToText } from '@/hooks/useSpeechToText';
 import { useWorkout } from '@/contexts/WorkoutContext';
+import { useAuth } from '@/contexts/AuthContext';
 import type { Workout } from '@/types';
 
 type ChatMessage = {
@@ -24,15 +25,34 @@ type ChatApiResponse = {
   buildPrompt?: string | null;
 };
 
-export default function AIChatbot({ onClose }: { onClose: () => void }) {
-  const router = useRouter();
-  const { setWorkout } = useWorkout();
-  const [messages, setMessages] = useState<ChatMessage[]>([{
+const CHAT_SESSION_KEY = 'kinetic_ai_chat_session';
+const GUEST_AI_WORKOUT_KEY = 'kinetic_guest_ai_workout';
+
+function getInitialMessages(): ChatMessage[] {
+  const fallback: ChatMessage[] = [{
     id: '1',
     role: 'assistant',
     content: 'Hey! 💪 I\'m KINETIC AI, your workout assistant. Ask me about exercises, workout plans, or interval training! I can also build custom workouts for you.',
     timestamp: new Date(),
-  }]);
+  }];
+
+  if (typeof window === 'undefined') return fallback;
+  try {
+    const raw = sessionStorage.getItem(CHAT_SESSION_KEY);
+    if (!raw) return fallback;
+    const parsed = JSON.parse(raw) as Array<Omit<ChatMessage, 'timestamp'> & { timestamp: string }>;
+    if (!Array.isArray(parsed) || parsed.length === 0) return fallback;
+    return parsed.map((m) => ({ ...m, timestamp: new Date(m.timestamp) }));
+  } catch {
+    return fallback;
+  }
+}
+
+export default function AIChatbot({ onClose }: { onClose: () => void }) {
+  const router = useRouter();
+  const { setWorkout } = useWorkout();
+  const { user, isGuest } = useAuth();
+  const [messages, setMessages] = useState<ChatMessage[]>(() => getInitialMessages());
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [buildingWorkout, setBuildingWorkout] = useState<string | null>(null);
@@ -48,6 +68,12 @@ export default function AIChatbot({ onClose }: { onClose: () => void }) {
 
   useEffect(() => {
     scrollToBottom();
+  }, [messages]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const recentMessages = messages.slice(-20);
+    sessionStorage.setItem(CHAT_SESSION_KEY, JSON.stringify(recentMessages));
   }, [messages]);
 
   const buildWorkout = async (prompt: string, messageId: string) => {
@@ -67,7 +93,8 @@ export default function AIChatbot({ onClose }: { onClose: () => void }) {
       if (!result.workout || !Array.isArray(result.workout.intervals) || result.workout.intervals.length === 0) {
         throw new Error('Invalid workout payload');
       }
-      setWorkout(result.workout);
+      const builtWorkout = result.workout;
+      setWorkout(builtWorkout);
       
       // Add success message
       setMessages(prev => [...prev, {
@@ -80,7 +107,19 @@ export default function AIChatbot({ onClose }: { onClose: () => void }) {
       // Navigate after a brief delay
       setTimeout(() => {
         onClose();
-        router.push('/workouts');
+        const isAuthenticated = !!user && !isGuest;
+        if (!isAuthenticated) {
+          sessionStorage.setItem(
+            GUEST_AI_WORKOUT_KEY,
+            JSON.stringify({
+              name: builtWorkout.name,
+              totalDuration: builtWorkout.totalDuration,
+              intervals: builtWorkout.intervals,
+            })
+          );
+        }
+        const destination = isAuthenticated ? '/workouts' : '/guest-timer?tab=interval&source=ai';
+        router.push(destination);
       }, 1000);
     } catch (error) {
       console.error('Workout generation error:', error);

@@ -16,7 +16,7 @@ const DURATION_PRESETS = [15, 30, 45, 60, 90, 120];
 export default function WorkoutsPage() {
   const router = useRouter();
   const { workout, setWorkout, startWorkout } = useWorkout();
-  const { workoutPresets, saveWorkoutPreset } = useAuth();
+  const { user, isGuest, isLoading, workoutPresets, saveWorkoutPreset } = useAuth();
   
   const [workoutName, setWorkoutName] = useState(workout?.name || '');
   const [totalMinutes, setTotalMinutes] = useState(workout?.totalDuration ? Math.floor(workout.totalDuration / 60) : 30);
@@ -50,6 +50,13 @@ export default function WorkoutsPage() {
     if (!workout || workout.intervals.length === 0) return;
     applyWorkoutToBuilder(workout);
   }, [workout, applyWorkoutToBuilder]);
+
+  useEffect(() => {
+    if (isLoading) return;
+    if (!user || isGuest) {
+      router.replace('/guest-timer');
+    }
+  }, [isLoading, user, isGuest, router]);
 
   const handleAddInterval = (type: 'work' | 'rest') => {
     const newInterval: WorkoutInterval = {
