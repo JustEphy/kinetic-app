@@ -173,11 +173,15 @@ export const supabaseDataStore: DataStore = {
 
   async saveSession(session: WorkoutSession): Promise<void> {
     const supabase = getSupabase();
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
     
-    await supabase.from('workout_sessions').upsert({
+    if (authError || !user?.id) {
+      throw new Error('User must be authenticated to save workout session');
+    }
+    
+    const { error } = await supabase.from('workout_sessions').upsert({
       id: session.id,
-      user_id: user?.id,
+      user_id: user.id,
       workout_id: session.workoutId,
       workout: session.workout,
       started_at: session.startedAt.toISOString(),
@@ -188,6 +192,10 @@ export const supabaseDataStore: DataStore = {
       status: session.status,
       calories_burned: session.caloriesBurned,
     });
+    
+    if (error) {
+      throw new Error(`Failed to save workout session: ${error.message}`);
+    }
   },
 
   // Stats
@@ -410,6 +418,10 @@ export const supabaseDataStore: DataStore = {
     if (profile.fitnessGoal !== undefined) updateData.fitness_goal = profile.fitnessGoal;
     if (profile.preferredWorkoutTypes !== undefined) updateData.preferred_workout_types = profile.preferredWorkoutTypes;
     
-    await supabase.from('profiles').update(updateData).eq('id', userId);
+    const { error } = await supabase.from('profiles').update(updateData).eq('id', userId);
+    
+    if (error) {
+      throw new Error(`Failed to update profile: ${error.message}`);
+    }
   },
 };

@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 
 type SpeechRecognitionType = {
   lang: string;
@@ -36,16 +36,12 @@ interface SpeechWindow extends Window {
 export function useSpeechToText(onTranscript: (text: string) => void) {
   const recognitionRef = useRef<SpeechRecognitionType | null>(null);
   const [isListening, setIsListening] = useState(false);
-  const [isSupported, setIsSupported] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
+  const [isSupported] = useState(() => {
+    if (typeof window === 'undefined') return false;
     const speechWindow = window as SpeechWindow;
-    const SpeechRecognitionCtor =
-      speechWindow.SpeechRecognition ?? speechWindow.webkitSpeechRecognition;
-    setIsSupported(Boolean(SpeechRecognitionCtor));
-  }, []);
+    return Boolean(speechWindow.SpeechRecognition ?? speechWindow.webkitSpeechRecognition);
+  });
+  const [error, setError] = useState<string | null>(null);
 
   const startListening = useCallback(() => {
     if (typeof window === 'undefined') return;

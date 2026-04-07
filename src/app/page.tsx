@@ -22,7 +22,7 @@ export default function RootPage() {
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <span className="material-symbols-outlined text-6xl text-primary animate-pulse">bolt</span>
-          <p className="text-on-surface-variant mt-4">Loading...</p>
+          <p className="text-on-surface-variant mt-4">Loading KINETIC...</p>
         </div>
       </div>
     );

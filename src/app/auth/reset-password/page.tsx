@@ -60,14 +60,14 @@ function ResetPasswordForm() {
 
           <input
             type="password"
-            className="w-full bg-surface-container text-on-surface px-4 py-3 rounded-lg outline-none border border-white/10 focus:border-primary"
+            className="ui-input"
             placeholder="New password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
           />
           <input
             type="password"
-            className="w-full bg-surface-container text-on-surface px-4 py-3 rounded-lg outline-none border border-white/10 focus:border-primary"
+            className="ui-input"
             placeholder="Confirm new password"
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
@@ -96,7 +96,7 @@ export default function ResetPasswordPage() {
       <div className="min-h-[80vh] flex items-center justify-center">
         <div className="text-center">
           <span className="material-symbols-outlined text-6xl text-primary animate-pulse">bolt</span>
-          <p className="text-on-surface-variant mt-4">Loading...</p>
+          <p className="text-on-surface-variant mt-4">Loading password reset...</p>
         </div>
       </div>
     }>

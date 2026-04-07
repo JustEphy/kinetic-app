@@ -17,6 +17,9 @@ function SignInForm() {
   const [infoMessage, setInfoMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSendingReset, setIsSendingReset] = useState(false);
+  const nameInputId = 'signin-name';
+  const emailInputId = 'signin-email';
+  const passwordInputId = 'signin-password';
 
   // Check for mode query param
   useEffect(() => {
@@ -117,28 +120,48 @@ function SignInForm() {
           </div>
 
           {mode === 'signup' && (
-            <input
-              className="w-full bg-surface-container text-on-surface px-4 py-3 rounded-lg outline-none border border-white/10 focus:border-primary"
-              placeholder="Name (optional)"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-            />
+            <div>
+              <label htmlFor={nameInputId} className="block mb-2 text-sm font-medium text-on-surface-variant">
+                Name (optional)
+              </label>
+              <input
+                id={nameInputId}
+                className="ui-input"
+                placeholder="Name (optional)"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+              />
+            </div>
           )}
-          <input
-            type="email"
-            className="w-full bg-surface-container text-on-surface px-4 py-3 rounded-lg outline-none border border-white/10 focus:border-primary"
-            placeholder="Email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-          />
-          <input
-            type="password"
-            className="w-full bg-surface-container text-on-surface px-4 py-3 rounded-lg outline-none border border-white/10 focus:border-primary"
-            placeholder="Password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleEmailSubmit()}
-          />
+          <div>
+            <label htmlFor={emailInputId} className="block mb-2 text-sm font-medium text-on-surface-variant">
+              Email
+            </label>
+            <input
+              id={emailInputId}
+              type="email"
+              className="ui-input"
+              placeholder="Email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              autoComplete="email"
+            />
+          </div>
+          <div>
+            <label htmlFor={passwordInputId} className="block mb-2 text-sm font-medium text-on-surface-variant">
+              Password
+            </label>
+            <input
+              id={passwordInputId}
+              type="password"
+              className="ui-input"
+              placeholder="Password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleEmailSubmit()}
+              autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
+            />
+          </div>
           {errorMessage && (
             <p className="text-sm text-warning">{errorMessage}</p>
           )}
@@ -207,7 +230,7 @@ export default function SignInPage() {
       <div className="min-h-[80vh] flex items-center justify-center">
         <div className="text-center">
           <span className="material-symbols-outlined text-6xl text-primary animate-pulse">bolt</span>
-          <p className="text-on-surface-variant mt-4">Loading...</p>
+          <p className="text-on-surface-variant mt-4">Loading sign-in...</p>
         </div>
       </div>
     }>

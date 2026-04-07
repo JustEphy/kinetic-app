@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { WorkoutInterval } from '@/types';
 
 interface WorkoutIntervalTimerViewProps {
@@ -51,7 +52,13 @@ export default function WorkoutIntervalTimerView({
 
   const strokeOffset = circumference * (1 - actualProgress / 100);
   const isWorkInterval = currentInterval.type === 'work' || currentInterval.type === 'warmup';
-  const showTransitionCue = Boolean(lastTransitionAt) && Date.now() - (lastTransitionAt ?? 0) < 1400;
+  const [now, setNow] = useState(() => Date.now());
+  const showTransitionCue = Boolean(lastTransitionAt) && now - (lastTransitionAt ?? 0) < 1400;
+
+  useEffect(() => {
+    const interval = window.setInterval(() => setNow(Date.now()), 250);
+    return () => window.clearInterval(interval);
+  }, []);
 
   return (
     <div className={`min-h-screen flex flex-col items-center justify-start relative overflow-hidden px-6 ${topPaddingClass}`}>

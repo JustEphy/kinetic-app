@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect, useReducer } from 'react';
 
 interface TimeAgoProps {
   date: Date;
@@ -19,25 +19,17 @@ function formatTimeAgo(date: Date): string {
 }
 
 export default function TimeAgo({ date, className }: TimeAgoProps) {
-  const [mounted, setMounted] = useState(false);
-  const [timeAgo, setTimeAgo] = useState('');
+  const [, forceRender] = useReducer((value: number) => value + 1, 0);
+  const timeAgo = formatTimeAgo(date);
 
   useEffect(() => {
-    setMounted(true);
-    setTimeAgo(formatTimeAgo(date));
-    
     // Update every minute
     const interval = setInterval(() => {
-      setTimeAgo(formatTimeAgo(date));
+      forceRender();
     }, 60000);
 
     return () => clearInterval(interval);
   }, [date]);
-
-  // Return placeholder during SSR to avoid hydration mismatch
-  if (!mounted) {
-    return <span className={className}>Recently</span>;
-  }
 
   return <span className={className}>{timeAgo}</span>;
 }

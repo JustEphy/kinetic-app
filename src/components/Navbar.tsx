@@ -54,13 +54,15 @@ export default function Navbar() {
             aria-label="Open presets"
             title="My Presets"
           >
-            <span className="material-symbols-outlined">bookmarks</span>
+            <span className="material-symbols-outlined" aria-hidden="true">bookmarks</span>
           </button>
           <Link
             href="/settings"
             className="p-2 rounded-full hover:bg-surface-container-highest/50 transition-all duration-300 active:scale-95 text-on-surface-variant"
+            aria-label="Open settings"
+            title="Settings"
           >
-            <span className="material-symbols-outlined">settings</span>
+            <span className="material-symbols-outlined" aria-hidden="true">settings</span>
           </Link>
         </div>
       </div>

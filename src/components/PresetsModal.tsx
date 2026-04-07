@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -22,10 +22,21 @@ export default function PresetsModal({ isOpen, onClose }: PresetsModalProps) {
     [workoutPresets]
   );
 
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   const handleSelectPreset = (presetId: string) => {
-    const target = `/workouts?preset=${encodeURIComponent(presetId)}&ts=${Date.now()}`;
+    const target = `/workouts?preset=${encodeURIComponent(presetId)}`;
     if (pathname.startsWith('/workouts')) {
       router.replace(target);
     } else {
@@ -35,10 +46,19 @@ export default function PresetsModal({ isOpen, onClose }: PresetsModalProps) {
   };
 
   return (
-    <div className="fixed inset-0 z-[120] bg-background/80 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="w-full max-w-lg rounded-xl bg-surface-container-low border border-outline-variant/30 p-5">
+    <div
+      className="fixed inset-0 z-[120] bg-background/80 backdrop-blur-sm flex items-center justify-center p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="presets-modal-title"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-lg rounded-xl bg-surface-container-low border border-outline-variant/30 p-5"
+        onClick={(event) => event.stopPropagation()}
+      >
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-black tracking-tight">My Presets</h3>
+          <h3 id="presets-modal-title" className="text-lg font-black tracking-tight">My Presets</h3>
           <button
             onClick={onClose}
             className="p-1 rounded-full text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors"
@@ -51,7 +71,7 @@ export default function PresetsModal({ isOpen, onClose }: PresetsModalProps) {
         {sortedPresets.length === 0 ? (
           <div className="text-center py-10 text-on-surface-variant">
             <span className="material-symbols-outlined text-3xl mb-2 block opacity-60">bookmarks</span>
-            <p>No saved presets yet. Save one from the Workout Builder.</p>
+            <p>No saved presets yet. Create one in Workout Builder, then open it here instantly.</p>
           </div>
         ) : (
           <div className="space-y-2 max-h-[60vh] overflow-y-auto pr-1">

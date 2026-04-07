@@ -15,13 +15,13 @@ export default function ChromeShell({ children }: { children: React.ReactNode })
     NO_CHROME_PREFIXES.some((prefix) => pathname.startsWith(prefix));
 
   if (hideChrome) {
-    return <main className="flex-1">{children}</main>;
+    return <main id="main-content" className="flex-1">{children}</main>;
   }
 
   return (
     <>
       <Navbar />
-      <main className="flex-1 pt-40 md:pt-20">{children}</main>
+      <main id="main-content" className="flex-1 pt-44 md:pt-20">{children}</main>
       <Footer />
     </>
   );

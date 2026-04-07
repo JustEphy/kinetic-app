@@ -134,7 +134,8 @@ export const localStorageDataStore: DataStore = {
   },
 
   // Sessions
-  async getSessions(userId: string): Promise<WorkoutSession[]> {
+  async getSessions(_userId: string): Promise<WorkoutSession[]> {
+    void _userId;
     const data = safeLocalStorage.getItem(STORAGE_KEYS.SESSIONS);
     if (!data) return [];
     return JSON.parse(data);
@@ -155,37 +156,40 @@ export const localStorageDataStore: DataStore = {
   },
 
   // Stats
-  async getUserStats(userId: string): Promise<UserStats> {
+  async getUserStats(_userId: string): Promise<UserStats> {
+    void _userId;
     const data = safeLocalStorage.getItem(STORAGE_KEYS.STATS);
     if (!data) return DEFAULT_STATS;
     return JSON.parse(data);
   },
 
-  async updateUserStats(userId: string, stats: Partial<UserStats>): Promise<void> {
-    const current = await this.getUserStats(userId);
+  async updateUserStats(_userId: string, stats: Partial<UserStats>): Promise<void> {
+    const current = await this.getUserStats(_userId);
     const updated = { ...current, ...stats };
     safeLocalStorage.setItem(STORAGE_KEYS.STATS, JSON.stringify(updated));
   },
 
   // Settings
-  async getSettings(userId: string): Promise<UserSettings> {
+  async getSettings(_userId: string): Promise<UserSettings> {
+    void _userId;
     const data = safeLocalStorage.getItem(STORAGE_KEYS.SETTINGS);
     if (!data) return DEFAULT_SETTINGS;
     return JSON.parse(data);
   },
 
-  async saveSettings(userId: string, settings: UserSettings): Promise<void> {
+  async saveSettings(_userId: string, settings: UserSettings): Promise<void> {
     safeLocalStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(settings));
   },
 
   // Personal Records
-  async getPersonalRecords(userId: string): Promise<PersonalRecord[]> {
+  async getPersonalRecords(_userId: string): Promise<PersonalRecord[]> {
+    void _userId;
     const data = safeLocalStorage.getItem(STORAGE_KEYS.RECORDS);
     if (!data) return [];
     return JSON.parse(data);
   },
 
-  async savePersonalRecord(userId: string, record: PersonalRecord): Promise<void> {
+  async savePersonalRecord(_userId: string, record: PersonalRecord): Promise<void> {
     const data = safeLocalStorage.getItem(STORAGE_KEYS.RECORDS);
     const records: PersonalRecord[] = data ? JSON.parse(data) : [];
     const index = records.findIndex((r) => r.id === record.id);
@@ -197,7 +201,7 @@ export const localStorageDataStore: DataStore = {
     safeLocalStorage.setItem(STORAGE_KEYS.RECORDS, JSON.stringify(records));
   },
 
-  async deletePersonalRecord(userId: string, recordId: string): Promise<void> {
+  async deletePersonalRecord(_userId: string, recordId: string): Promise<void> {
     const data = safeLocalStorage.getItem(STORAGE_KEYS.RECORDS);
     if (!data) return;
     const records: PersonalRecord[] = JSON.parse(data);
@@ -206,14 +210,14 @@ export const localStorageDataStore: DataStore = {
   },
 
   // Recent Activity
-  async getRecentActivity(userId: string, limit = 10): Promise<RecentActivity[]> {
+  async getRecentActivity(_userId: string, limit = 10): Promise<RecentActivity[]> {
     const data = safeLocalStorage.getItem(STORAGE_KEYS.ACTIVITY);
     if (!data) return [];
     const activities: RecentActivity[] = JSON.parse(data);
     return activities.slice(-limit).reverse();
   },
 
-  async saveActivity(userId: string, activity: RecentActivity): Promise<void> {
+  async saveActivity(_userId: string, activity: RecentActivity): Promise<void> {
     const data = safeLocalStorage.getItem(STORAGE_KEYS.ACTIVITY);
     const activities: RecentActivity[] = data ? JSON.parse(data) : [];
     activities.push(activity);

@@ -293,19 +293,19 @@ export default function ContactPage() {
             <div>
               <h3 className="font-semibold mb-1">🐛 Found a Bug?</h3>
               <p className="text-muted-foreground">
-                Select "Report a Bug" in the category dropdown and include detailed steps to reproduce the issue.
+                Select &quot;Report a Bug&quot; in the category dropdown and include detailed steps to reproduce the issue.
               </p>
             </div>
             <div>
               <h3 className="font-semibold mb-1">💡 Have an Idea?</h3>
               <p className="text-muted-foreground">
-                We love hearing feature suggestions! Choose "Feature Request" and tell us what you&apos;d like to see.
+                We love hearing feature suggestions! Choose &quot;Feature Request&quot; and tell us what you&apos;d like to see.
               </p>
             </div>
             <div>
               <h3 className="font-semibold mb-1">🔒 Privacy Concerns?</h3>
               <p className="text-muted-foreground">
-                For data export, deletion, or privacy inquiries, select "Privacy/Data Request" category.
+                For data export, deletion, or privacy inquiries, select &quot;Privacy/Data Request&quot; category.
               </p>
             </div>
           </div>

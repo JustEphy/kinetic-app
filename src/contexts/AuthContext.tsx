@@ -60,7 +60,7 @@ const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [supabaseUser, setSupabaseUser] = useState<SupabaseUser | null>(null);
+  const [, setSupabaseUser] = useState<SupabaseUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [settings, setSettings] = useState<UserSettings>(DEFAULT_SETTINGS);
   const [stats, setStats] = useState<UserStats>(DEFAULT_STATS);
@@ -71,7 +71,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signingOutRef = useRef(false);
 
   const isGuest = user?.isGuest ?? true;
-  const dataStore = getDataStore(isGuest);
 
   // Convert Supabase user to our User type
   const mapSupabaseUser = (sbUser: SupabaseUser): User => ({
@@ -164,7 +163,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       if ((event === 'INITIAL_SESSION' || event === 'SIGNED_IN') && session?.user) {
-        const loadStartedAt = performance.now();
         setIsLoading(true);
         const mappedUser = mapSupabaseUser(session.user);
         setUser(mappedUser);
@@ -229,7 +227,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsLoading(true);
 
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
+      const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
@@ -373,7 +371,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const updatedUser = { ...user, ...profile };
     setUser(updatedUser);
     await ds.saveUser(updatedUser);
-  }, [user, workoutPresets]);
+  }, [user]);
 
   const addPersonalRecord = useCallback(async (record: Omit<PersonalRecord, 'id' | 'achievedAt'>) => {
     if (!user) return;

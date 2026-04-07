@@ -142,8 +142,6 @@ function parseIntervals(prompt: string): { work: number; rest: number } | null {
   
   if (match) {
     const workStr = match[0].match(/(\d+(?::\d{2})?)\s*(?:min(?:ute)?s?|sec(?:ond)?s?|m|s)?/)?.[0] || match[1];
-    const restMatch = match[0].match(/(?:rest|off|recovery).*?(\d+(?::\d{2})?)/i) || [null, match[2]];
-    
     let work = parseTime(workStr);
     let rest = parseTime(match[2] + (lowerPrompt.includes('sec') ? ' sec' : ' min'));
     
@@ -248,7 +246,6 @@ function generateWorkout(
   let workBlockIndex = 1; // reserve index 0 (Warm Up) for warmup block label only
   let currentTime = 0;
   let isWork = true;
-  let blockCount = 0;
   
   // Add warmup if workout is longer than 10 minutes
   if (totalDuration > 600) {
@@ -286,7 +283,6 @@ function generateWorkout(
     }
     
     if (isWork) {
-      blockCount++;
       const workLabel = exerciseNames[Math.min(workBlockIndex, exerciseNames.length - 1)];
       workBlockIndex++;
       intervals.push({

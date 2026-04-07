@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { themes, Theme, applyTheme } from '@/lib/themes';
+import { themes, Theme } from '@/lib/themes';
 
 interface ThemeContextType {
   currentTheme: Theme;
@@ -14,18 +14,11 @@ const ThemeContext = createContext<ThemeContextType | null>(null);
 const STORAGE_KEY = 'kinetic_theme';
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [themeId, setThemeId] = useState('kinetic-volt');
-  const [mounted, setMounted] = useState(false);
-
-  // Load saved theme on mount
-  useEffect(() => {
+  const [themeId, setThemeId] = useState(() => {
+    if (typeof window === 'undefined') return 'kinetic-volt';
     const savedTheme = localStorage.getItem(STORAGE_KEY);
-    if (savedTheme && themes[savedTheme]) {
-      setThemeId(savedTheme);
-      applyThemeColors(savedTheme);
-    }
-    setMounted(true);
-  }, []);
+    return savedTheme && themes[savedTheme] ? savedTheme : 'kinetic-volt';
+  });
 
   const applyThemeColors = useCallback((id: string) => {
     const theme = themes[id];
@@ -91,12 +84,10 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   const currentTheme = themes[themeId] || themes['kinetic-volt'];
 
-  // Apply theme on initial render
+  // Apply theme on render and when it changes
   useEffect(() => {
-    if (mounted) {
-      applyThemeColors(themeId);
-    }
-  }, [mounted, themeId, applyThemeColors]);
+    applyThemeColors(themeId);
+  }, [themeId, applyThemeColors]);
 
   return (
     <ThemeContext.Provider value={{ currentTheme, themeId, setTheme }}>

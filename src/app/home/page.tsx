@@ -4,22 +4,13 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { generateWorkoutFromPrompt } from '@/lib/ai';
-import { useWorkout } from '@/contexts/WorkoutContext';
 import TimeAgo from '@/components/TimeAgo';
 import PresetsModal from '@/components/PresetsModal';
-import { useSpeechToText } from '@/hooks/useSpeechToText';
 
 export default function HomePage() {
   const router = useRouter();
   const { user, isLoading, stats, recentActivity } = useAuth();
-  const { setWorkout } = useWorkout();
-  const [aiPrompt, setAiPrompt] = useState('');
-  const [isGenerating, setIsGenerating] = useState(false);
   const [isPresetsModalOpen, setIsPresetsModalOpen] = useState(false);
-  const { isSupported: speechSupported, isListening, error: speechError, toggleListening } = useSpeechToText(
-    (text) => setAiPrompt(text)
-  );
 
   // Redirect to landing if not authenticated
   useEffect(() => {
@@ -32,33 +23,18 @@ export default function HomePage() {
   if (isLoading || !user) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <span className="material-symbols-outlined text-6xl text-primary animate-pulse">bolt</span>
-          <p className="text-on-surface-variant mt-4">Loading...</p>
+          <div className="text-center">
+            <span className="material-symbols-outlined text-6xl text-primary animate-pulse">bolt</span>
+            <p className="text-on-surface-variant mt-4">Loading your dashboard...</p>
+          </div>
         </div>
-      </div>
-    );
+      );
   }
 
-  const handleAIGenerate = async () => {
-    if (!aiPrompt.trim()) return;
-    
-    setIsGenerating(true);
-    try {
-      const result = await generateWorkoutFromPrompt({ prompt: aiPrompt });
-      setWorkout(result.workout);
-      router.push('/workouts');
-    } catch (error) {
-      console.error('AI generation error:', error);
-    } finally {
-      setIsGenerating(false);
-    }
-  };
-
   return (
-    <div className="pb-12 px-6 lg:px-12 max-w-[1400px] mx-auto">
+    <div className="pb-12 px-4 sm:px-6 lg:px-12 max-w-[1400px] mx-auto">
       {/* Hero Section */}
-      <section className="relative mb-12 rounded-xl overflow-hidden min-h-[400px] flex items-center bg-surface-container-low">
+      <section className="relative mb-10 md:mb-12 rounded-xl overflow-hidden min-h-[340px] md:min-h-[400px] flex items-center bg-surface-container-low">
         <div className="absolute inset-0 z-0 overflow-hidden">
           <div className="absolute inset-0 bg-gradient-to-r from-background via-background/60 to-transparent z-10"></div>
           <img
@@ -67,8 +43,8 @@ export default function HomePage() {
             src="https://lh3.googleusercontent.com/aida-public/AB6AXuC7V0yHvUApLgqwuu8fsOWuAj2tN_viGilC_W7NKP2S-10VRTH7N9yIPvI1KoGXMe8UkWqJQKboAqId43CYLukWdwx7aQbVr9y4aioUDfpHuqXvc4cEMnzV4nUCBs-eJ8RuNisvjtAf_FnU_hc6v58WERNX4Mdf4Rs3RHB2iCwZAi10yVMSYs3Nv1hXTC-iYlOiDlmVYkTbmflaSF3aaJtRv0xZR9LW2y7LHMTuifj629ViHUq9-PCVNkXVgYzq6ApaqOmeo4WFetf8"
           />
         </div>
-        <div className="relative z-20 px-8 lg:px-16 py-12 max-w-2xl">
-          <h1 className="text-6xl lg:text-7xl font-black tracking-tighter leading-none mb-6">
+        <div className="relative z-20 px-6 md:px-8 lg:px-16 py-10 md:py-12 max-w-2xl">
+          <h1 className="text-4xl sm:text-5xl lg:text-7xl font-black tracking-tighter leading-none mb-4 md:mb-6">
             READY TO <br />
             <span className="text-primary italic">TRAIN?</span>
           </h1>
@@ -99,63 +75,6 @@ export default function HomePage() {
               <span className="material-symbols-outlined">bookmarks</span>
               My Presets
             </button>
-          </div>
-        </div>
-      </section>
-
-      {/* KINETIC AI Section */}
-      <section className="mb-12">
-        <div className="glass-panel border border-outline-variant/30 rounded-xl p-8 neon-glow-secondary relative overflow-hidden">
-          <div className="absolute -right-12 -top-12 w-64 h-64 bg-secondary/5 rounded-full blur-3xl pointer-events-none"></div>
-          <div className="relative z-10 flex flex-col md:flex-row items-center gap-8">
-            <div className="shrink-0">
-              <div className="w-20 h-20 rounded-2xl bg-secondary/10 border border-secondary/20 flex items-center justify-center relative group">
-                <span className="material-symbols-outlined text-secondary text-4xl animate-pulse">
-                  psychology
-                </span>
-                <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-secondary rounded-full border-2 border-background"></div>
-              </div>
-            </div>
-            <div className="flex-1 w-full">
-              <div className="flex items-center gap-3 mb-2">
-                <h2 className="text-xl font-black italic tracking-widest text-secondary">KINETIC AI</h2>
-                <span className="px-2 py-0.5 rounded-full bg-secondary/20 text-secondary text-[10px] font-bold uppercase tracking-wider">
-                  Online
-                </span>
-              </div>
-              <div className="relative group">
-                <input
-                  type="text"
-                  value={aiPrompt}
-                  onChange={(e) => setAiPrompt(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleAIGenerate()}
-                  placeholder='Describe your workout goal (e.g., "30-minute HIIT with 1-min work/30-sec rest").'
-                  className="w-full bg-surface-container-highest border-none rounded-full py-4 pl-6 pr-24 text-on-surface placeholder:text-on-surface-variant focus:ring-2 focus:ring-secondary/50 transition-all"
-                />
-                <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
-                  <button
-                    onClick={toggleListening}
-                    className={`p-2 rounded-full transition-colors ${
-                      isListening ? 'bg-secondary text-on-secondary-fixed' : 'hover:bg-secondary/10 text-secondary'
-                    } ${!speechSupported ? 'opacity-40 cursor-not-allowed' : ''}`}
-                    disabled={!speechSupported}
-                    title={speechSupported ? 'Speak your workout prompt' : 'Speech input not supported'}
-                  >
-                    <span className="material-symbols-outlined">mic</span>
-                  </button>
-                  <button
-                    onClick={handleAIGenerate}
-                    disabled={isGenerating || !aiPrompt.trim()}
-                    className="p-2 bg-secondary text-on-secondary-fixed rounded-full hover:scale-110 transition-transform disabled:opacity-50 disabled:hover:scale-100"
-                  >
-                    <span className="material-symbols-outlined">
-                      {isGenerating ? 'hourglass_empty' : 'arrow_forward'}
-                    </span>
-                  </button>
-                </div>
-              </div>
-              {speechError && <p className="mt-2 text-xs text-error">{speechError}</p>}
-            </div>
           </div>
         </div>
       </section>
@@ -203,7 +122,7 @@ export default function HomePage() {
             {recentActivity.length === 0 ? (
               <div className="text-center py-12 text-on-surface-variant">
                 <span className="material-symbols-outlined text-4xl mb-4 block">fitness_center</span>
-                <p>No recent activity yet. Start a workout to see your history here!</p>
+                <p>No activity yet — start your first workout to build momentum.</p>
               </div>
             ) : (
               recentActivity.map((activity) => (
@@ -265,12 +184,6 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* Floating AI Chat Widget */}
-      <div className="fixed bottom-6 right-6 z-[100] group">
-        <button className="w-14 h-14 rounded-full kinetic-gradient flex items-center justify-center shadow-lg hover:scale-110 transition-transform active:scale-95 neon-glow-primary">
-          <span className="material-symbols-outlined text-white text-3xl">psychology</span>
-        </button>
-      </div>
       <PresetsModal isOpen={isPresetsModalOpen} onClose={() => setIsPresetsModalOpen(false)} />
     </div>
   );

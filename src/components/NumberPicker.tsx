@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useCallback, useState, useEffect } from 'react';
+import { useCallback } from 'react';
 
 interface NumberPickerProps {
   value: number;
@@ -19,11 +19,7 @@ export default function NumberPicker({
   label,
   padZero = true 
 }: NumberPickerProps) {
-  const [mounted, setMounted] = useState(false);
-  
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  const valueId = `number-picker-${label.toLowerCase().replace(/\s+/g, '-')}`;
 
   const format = useCallback((num: number) => {
     return padZero ? num.toString().padStart(2, '0') : num.toString();
@@ -37,24 +33,6 @@ export default function NumberPicker({
     onChange(value <= min ? max : value - 1);
   }, [value, max, min, onChange]);
 
-  // Use simplified UI that works without hydration issues
-  if (!mounted) {
-    return (
-      <div className="flex flex-col items-center">
-        <p className="text-[10px] text-on-surface-variant uppercase tracking-widest font-bold mb-2">
-          {label}
-        </p>
-        <div className="flex flex-col items-center gap-2">
-          <div className="w-10 h-10" />
-          <div className="text-5xl font-black text-primary w-20 text-center">
-            {format(value)}
-          </div>
-          <div className="w-10 h-10" />
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="flex flex-col items-center">
       <p className="text-[10px] text-on-surface-variant uppercase tracking-widest font-bold mb-2">
@@ -65,13 +43,15 @@ export default function NumberPicker({
         <button
           type="button"
           onClick={increment}
+          aria-label={`Increase ${label}`}
+          aria-controls={valueId}
           className="w-10 h-10 rounded-full bg-surface-container-high hover:bg-surface-container-highest flex items-center justify-center transition-colors active:scale-95"
         >
-          <span className="material-symbols-outlined text-on-surface-variant">keyboard_arrow_up</span>
+          <span className="material-symbols-outlined text-on-surface-variant" aria-hidden="true">keyboard_arrow_up</span>
         </button>
         
         {/* Current value */}
-        <div className="text-5xl font-black text-primary w-20 text-center select-none">
+        <div id={valueId} className="text-5xl font-black text-primary w-20 text-center select-none" aria-live="polite">
           {format(value)}
         </div>
         
@@ -79,9 +59,11 @@ export default function NumberPicker({
         <button
           type="button"
           onClick={decrement}
+          aria-label={`Decrease ${label}`}
+          aria-controls={valueId}
           className="w-10 h-10 rounded-full bg-surface-container-high hover:bg-surface-container-highest flex items-center justify-center transition-colors active:scale-95"
         >
-          <span className="material-symbols-outlined text-on-surface-variant">keyboard_arrow_down</span>
+          <span className="material-symbols-outlined text-on-surface-variant" aria-hidden="true">keyboard_arrow_down</span>
         </button>
       </div>
     </div>

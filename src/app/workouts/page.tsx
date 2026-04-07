@@ -1,14 +1,13 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useWorkout } from '@/contexts/WorkoutContext';
 import { useAuth } from '@/contexts/AuthContext';
-import { generateWorkoutFromPrompt, presets } from '@/lib/ai';
+import { presets } from '@/lib/ai';
 import { WorkoutInterval, WorkoutPreset } from '@/types';
 import { generateId } from '@/lib/db';
 import PresetsModal from '@/components/PresetsModal';
-import { useSpeechToText } from '@/hooks/useSpeechToText';
 
 type IntervalMode = 'simple' | 'advanced';
 
@@ -19,8 +18,6 @@ export default function WorkoutsPage() {
   const { workout, setWorkout, startWorkout } = useWorkout();
   const { workoutPresets, saveWorkoutPreset } = useAuth();
   
-  const [aiPrompt, setAiPrompt] = useState('');
-  const [isGenerating, setIsGenerating] = useState(false);
   const [workoutName, setWorkoutName] = useState(workout?.name || '');
   const [totalMinutes, setTotalMinutes] = useState(workout?.totalDuration ? Math.floor(workout.totalDuration / 60) : 30);
   const [intervals, setIntervals] = useState<WorkoutInterval[]>(workout?.intervals || []);
@@ -40,30 +37,19 @@ export default function WorkoutsPage() {
   const [presetError, setPresetError] = useState<string | null>(null);
   const [isSavingPreset, setIsSavingPreset] = useState(false);
   const [isPresetsModalOpen, setIsPresetsModalOpen] = useState(false);
-  const { isSupported: speechSupported, isListening, error: speechError, toggleListening } = useSpeechToText(
-    (text) => setAiPrompt(text)
-  );
 
-  const handleAIGenerate = async () => {
-    if (!aiPrompt.trim()) return;
-    
-    setIsGenerating(true);
-    try {
-      const result = await generateWorkoutFromPrompt({ 
-        prompt: aiPrompt,
-        totalDuration: totalMinutes 
-      });
-      setWorkout(result.workout);
-      setWorkoutName(result.workout.name);
-      setTotalMinutes(Math.max(1, Math.ceil(result.workout.totalDuration / 60)));
-      setIntervals(result.workout.intervals);
-      setIntervalMode('advanced');
-    } catch (error) {
-      console.error('AI generation error:', error);
-    } finally {
-      setIsGenerating(false);
-    }
-  };
+  const applyWorkoutToBuilder = useCallback((nextWorkout: NonNullable<typeof workout>) => {
+    setWorkoutName(nextWorkout.name);
+    setTotalMinutes(Math.max(1, Math.ceil(nextWorkout.totalDuration / 60)));
+    setIntervals(nextWorkout.intervals);
+    setIntervalMode('advanced');
+  }, []);
+
+  // Keep builder UI in sync when workout is generated outside this page (e.g., chatbot).
+  useEffect(() => {
+    if (!workout || workout.intervals.length === 0) return;
+    applyWorkoutToBuilder(workout);
+  }, [workout, applyWorkoutToBuilder]);
 
   const handleAddInterval = (type: 'work' | 'rest') => {
     const newInterval: WorkoutInterval = {
@@ -267,10 +253,10 @@ export default function WorkoutsPage() {
   const hasDurationMismatch = intervalMode === 'advanced' && intervals.length > 0 && Math.abs(durationDiff) > 0;
 
   return (
-    <div className="pb-32 px-6 max-w-5xl mx-auto">
+    <div className="pb-24 md:pb-32 px-4 sm:px-6 max-w-5xl mx-auto">
       {/* Header */}
-      <header className="mb-12">
-        <h1 className="text-5xl font-extrabold tracking-tighter text-on-surface mb-2">
+      <header className="mb-8 md:mb-12">
+        <h1 className="text-4xl md:text-5xl font-extrabold tracking-tighter text-on-surface mb-2">
           Workout Builder
         </h1>
         <p className="text-on-surface-variant font-light tracking-wide">
@@ -278,79 +264,37 @@ export default function WorkoutsPage() {
         </p>
       </header>
 
-      {/* AI Protocol Engine */}
-      <section className="mb-10 p-6 rounded-lg bg-surface-container-high border border-secondary/20 relative overflow-hidden group">
-        <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-          <span className="material-symbols-outlined text-6xl text-secondary">psychology</span>
+      {/* Quick Presets */}
+      <section className="mb-8 md:mb-10 p-4 md:p-6 rounded-lg bg-surface-container-high border border-secondary/20">
+        <div className="flex items-center gap-2 mb-4">
+          <span className="material-symbols-outlined text-secondary text-sm">bolt</span>
+          <h3 className="text-xs font-black uppercase tracking-[0.2em] text-secondary">
+            Quick Presets
+          </h3>
         </div>
-        <div className="relative z-10">
-          <div className="flex items-center gap-2 mb-4">
-            <span className="material-symbols-outlined text-secondary text-sm">auto_awesome</span>
-            <h3 className="text-xs font-black uppercase tracking-[0.2em] text-secondary">
-              AI Protocol Engine
-            </h3>
-          </div>
-          <p className="text-on-surface-variant text-sm mb-6 max-w-md">
-            Describe your workout and let AI create the intervals for you.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-3">
-            <div className="relative flex-grow">
-              <input
-                type="text"
-                value={aiPrompt}
-                onChange={(e) => setAiPrompt(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleAIGenerate()}
-                placeholder="e.g., 60 min workout with 1 min work / 30 sec rest..."
-                className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-full pl-6 pr-14 py-4 text-on-surface focus:ring-2 focus:ring-secondary/50 focus:border-secondary/50 transition-all placeholder:text-on-surface-variant/40 text-sm"
-              />
-              <button
-                type="button"
-                onClick={toggleListening}
-                className={`absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-full transition-colors ${
-                  isListening ? 'bg-secondary text-on-secondary-fixed' : 'text-secondary hover:bg-secondary/10'
-                } ${!speechSupported ? 'opacity-40 cursor-not-allowed' : ''}`}
-                disabled={!speechSupported}
-                title={speechSupported ? 'Speak your workout prompt' : 'Speech input not supported'}
-              >
-                <span className="material-symbols-outlined text-sm">mic</span>
-              </button>
-            </div>
+        <div className="flex flex-wrap gap-2">
+          {[
+            { label: 'Tabata', fn: presets.tabata },
+            { label: 'Quick HIIT', fn: presets.quickHIIT },
+            { label: 'Endurance', fn: presets.endurance30 },
+            { label: 'Fat Burn', fn: presets.fatBurn },
+          ].map(preset => (
             <button
-              onClick={handleAIGenerate}
-              disabled={isGenerating || !aiPrompt.trim()}
-              className="bg-secondary text-on-secondary-fixed font-bold px-8 py-4 rounded-full flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition-all text-sm whitespace-nowrap shadow-[0_0_20px_rgba(0,238,252,0.2)] disabled:opacity-50"
+              key={preset.label}
+              onClick={() => handlePreset(preset.fn)}
+              className="px-4 py-2 rounded-full bg-surface-container text-on-surface-variant text-xs hover:bg-surface-container-highest transition-colors"
             >
-              <span>{isGenerating ? 'Generating...' : 'Generate'}</span>
-              <span className="material-symbols-outlined text-sm">bolt</span>
+              {preset.label}
             </button>
-          </div>
-          {speechError && <p className="mt-2 text-xs text-error">{speechError}</p>}
-          
-          {/* Quick Presets */}
-          <div className="flex flex-wrap gap-2 mt-4">
-            {[
-              { label: 'Tabata', fn: presets.tabata },
-              { label: 'Quick HIIT', fn: presets.quickHIIT },
-              { label: 'Endurance', fn: presets.endurance30 },
-              { label: 'Fat Burn', fn: presets.fatBurn },
-            ].map(preset => (
-              <button
-                key={preset.label}
-                onClick={() => handlePreset(preset.fn)}
-                className="px-4 py-2 rounded-full bg-surface-container text-on-surface-variant text-xs hover:bg-surface-container-highest transition-colors"
-              >
-                {preset.label}
-              </button>
-            ))}
-          </div>
+          ))}
         </div>
       </section>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-8">
         {/* Setup Form */}
         <div className="lg:col-span-7 space-y-8">
           {/* Basic Info */}
-          <section className="bg-surface-container-low p-8 rounded-lg">
+          <section className="bg-surface-container-low p-5 md:p-8 rounded-lg">
             <div className="space-y-6">
               <div>
                 <label className="block text-secondary text-xs uppercase tracking-widest font-bold mb-3">
@@ -361,7 +305,7 @@ export default function WorkoutsPage() {
                   value={workoutName}
                   onChange={(e) => setWorkoutName(e.target.value)}
                   placeholder="e.g., Morning HIIT"
-                  className="w-full bg-surface-container-high border-none rounded-full px-6 py-4 text-on-surface focus:ring-2 focus:ring-secondary/50 transition-all placeholder:text-on-surface-variant/30"
+                  className="ui-input w-full rounded-full px-6 py-4"
                 />
               </div>
               
@@ -436,7 +380,7 @@ export default function WorkoutsPage() {
 
           {intervalMode === 'simple' ? (
             /* Simple Interval Mode */
-            <section className="bg-surface-container-low p-8 rounded-lg">
+            <section className="bg-surface-container-low p-5 md:p-8 rounded-lg">
               <div className="mb-6">
                 <h3 className="text-lg font-bold mb-2">Repeat Every</h3>
                 <p className="text-on-surface-variant text-sm">
@@ -754,7 +698,7 @@ export default function WorkoutsPage() {
                   value={presetName}
                   onChange={(e) => setPresetName(e.target.value)}
                   placeholder="e.g., My HIIT Routine"
-                  className="w-full bg-surface-container-high border-none rounded-lg px-4 py-3 text-on-surface focus:ring-2 focus:ring-primary/50 transition-all"
+                  className="ui-input w-full rounded-lg px-4 py-3"
                 />
               </div>
               <div>
@@ -764,7 +708,7 @@ export default function WorkoutsPage() {
                   onChange={(e) => setPresetDescription(e.target.value)}
                   placeholder="Quick notes about this workout..."
                   rows={2}
-                  className="w-full bg-surface-container-high border-none rounded-lg px-4 py-3 text-on-surface focus:ring-2 focus:ring-primary/50 transition-all resize-none"
+                  className="ui-input w-full rounded-lg px-4 py-3 resize-none"
                 />
               </div>
               <div className="text-on-surface-variant text-sm">

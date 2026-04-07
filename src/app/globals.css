@@ -15,7 +15,7 @@
   
   --color-on-background: var(--theme-on-background, #f8f9fe);
   --color-on-surface: var(--theme-on-surface, #f8f9fe);
-  --color-on-surface-variant: var(--theme-on-surface-variant, #a9abb0);
+  --color-on-surface-variant: var(--theme-on-surface-variant, #c7c9ce);
   
   --color-primary: var(--theme-primary, #ff8aa9);
   --color-primary-dim: var(--theme-primary-dim, #e4006c);
@@ -49,7 +49,7 @@
   --color-on-tertiary-fixed: #210050;
   --color-on-tertiary-fixed-variant: #461f8a;
   
-  --color-error: var(--theme-error, #ff716c);
+  --color-error: var(--theme-error, #ff9691);
   --color-error-dim: var(--theme-error-dim, #d7383b);
   --color-error-container: var(--theme-error-container, #9f0519);
   --color-on-error: var(--theme-on-error, #490006);
@@ -201,4 +201,64 @@ body {
 .number-picker {
   scrollbar-width: none;
   -ms-overflow-style: none;
+}
+
+/* Chatbot animations */
+@keyframes slide-in-bottom {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.animate-slide-in-bottom {
+  animation: slide-in-bottom 0.3s ease-out;
+}
+
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  top: 0.5rem;
+  z-index: 10000;
+  background: var(--theme-surface-container-high, #1c2025);
+  color: var(--theme-on-surface, #f8f9fe);
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--theme-outline, #73757a);
+}
+
+.skip-link:focus {
+  left: 0.5rem;
+}
+
+.ui-input {
+  width: 100%;
+  background: var(--theme-surface-container-high, #1c2025);
+  color: var(--theme-on-surface, #f8f9fe);
+  border: 1px solid color-mix(in srgb, var(--theme-outline-variant, #46484c) 70%, transparent);
+  border-radius: 0.75rem;
+  padding: 0.75rem 1rem;
+  outline: none;
+}
+
+.ui-input::placeholder {
+  color: color-mix(in srgb, var(--theme-on-surface-variant, #c7c9ce) 75%, transparent);
+}
+
+.ui-input:focus {
+  border-color: var(--theme-primary, #ff8aa9);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--theme-primary, #ff8aa9) 40%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

@@ -1,38 +1,34 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 
 export default function DisclaimerModal() {
-  const [showModal, setShowModal] = useState(false);
+  const [hasAccepted, setHasAccepted] = useState(false);
   const [hasDeclined, setHasDeclined] = useState(false);
-  const [isClient, setIsClient] = useState(false);
   const { user, isLoading, isGuest } = useAuth();
+  const titleId = useId();
+  const showModal = !isLoading && (isGuest || !user) && !hasAccepted;
 
   useEffect(() => {
-    setIsClient(true);
-    
-    // Only show disclaimer for guest users (not logged in)
-    // Logged-in users implicitly accepted terms during signup
-    if (isLoading) {
-      // Wait for auth to initialize
-      return;
-    }
-    
-    if (isGuest || !user) {
-      // Guest user - always show disclaimer
-      setShowModal(true);
-    } else {
-      // Logged-in user - don't show disclaimer
-      setShowModal(false);
-    }
-  }, [isLoading, isGuest, user]);
+    if (!showModal) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        if (hasDeclined) {
+          setHasDeclined(false);
+          return;
+        }
+        setHasDeclined(true);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [showModal, hasDeclined]);
 
   const handleAccept = () => {
-    // For guest users, just close the modal (they'll see it again next visit)
-    // No need to store in localStorage since we want it to appear every time
-    setShowModal(false);
+    // Close for this visit/session only.
+    setHasAccepted(true);
     setHasDeclined(false);
   };
 
@@ -45,17 +41,22 @@ export default function DisclaimerModal() {
   };
 
   // Don't render anything on server-side to avoid hydration issues
-  if (!isClient || !showModal) {
+  if (!showModal) {
     return null;
   }
 
   return (
     <>
       {/* Backdrop */}
-      <div className="fixed inset-0 bg-surface-dim/95 backdrop-blur-sm z-50" />
+      <div className="fixed inset-0 bg-surface-dim/95 backdrop-blur-sm z-50" aria-hidden="true" />
 
       {/* Modal */}
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto">
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto"
+        role={hasDeclined ? 'alertdialog' : 'dialog'}
+        aria-modal="true"
+        aria-labelledby={titleId}
+      >
         <div className="bg-surface-container-high rounded-2xl shadow-2xl max-w-2xl w-full my-8 border border-outline-variant">
           {!hasDeclined ? (
             <>
@@ -64,7 +65,7 @@ export default function DisclaimerModal() {
                 <div className="flex items-center gap-4">
                   <span className="material-symbols-outlined text-5xl text-error">warning</span>
                   <div>
-                    <h2 className="text-2xl font-bold text-on-surface">Important Legal Disclaimer</h2>
+                    <h2 id={titleId} className="text-2xl font-bold text-on-surface">Important Legal Disclaimer</h2>
                     <p className="text-on-surface-variant text-sm mt-1">Please read carefully before continuing</p>
                   </div>
                 </div>
@@ -227,7 +228,7 @@ export default function DisclaimerModal() {
                 <div className="flex items-center gap-4">
                   <span className="material-symbols-outlined text-5xl text-error">block</span>
                   <div>
-                    <h2 className="text-2xl font-bold text-on-surface">Access Denied</h2>
+                    <h2 id={titleId} className="text-2xl font-bold text-on-surface">Access Denied</h2>
                     <p className="text-on-surface-variant text-sm mt-1">You must accept to continue</p>
                   </div>
                 </div>

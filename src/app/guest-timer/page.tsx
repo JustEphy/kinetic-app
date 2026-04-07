@@ -7,13 +7,12 @@ import { audioManager, haptics, notify } from '@/lib/audio';
 import WorkoutIntervalTimerView from '@/components/WorkoutIntervalTimerView';
 import { WorkoutInterval } from '@/types';
 import { generateId } from '@/lib/db';
-import { generateWorkoutFromPrompt, presets } from '@/lib/ai';
+import { presets } from '@/lib/ai';
 
 type GuestMode = 'normal' | 'interval';
 type TimerMode = 'setup' | 'countdown' | 'stopwatch';
 type IntervalMode = 'simple' | 'advanced';
-
-interface Interval extends WorkoutInterval {}
+type Interval = WorkoutInterval;
 
 const DURATION_PRESETS = [15, 30, 45, 60, 90, 120];
 
@@ -34,8 +33,6 @@ export default function GuestTimerPage() {
 
   // Interval builder/timer state (1:1 with workouts builder)
   const [workoutName, setWorkoutName] = useState('Guest Workout');
-  const [aiPrompt, setAiPrompt] = useState('');
-  const [isGenerating, setIsGenerating] = useState(false);
   const [totalMinutes, setTotalMinutes] = useState(30);
   const [intervals, setIntervals] = useState<Interval[]>([]);
   const [intervalMode, setIntervalMode] = useState<IntervalMode>('simple');
@@ -153,26 +150,6 @@ export default function GuestTimerPage() {
 
   const handleUpdateInterval = (id: string, updates: Partial<WorkoutInterval>) => {
     setIntervals(intervals.map((i) => (i.id === id ? { ...i, ...updates } : i)));
-  };
-
-  const handleAIGenerate = async () => {
-    if (!aiPrompt.trim()) return;
-
-    setIsGenerating(true);
-    try {
-      const result = await generateWorkoutFromPrompt({
-        prompt: aiPrompt,
-        totalDuration: totalMinutes,
-      });
-      setWorkoutName(result.workout.name);
-      setTotalMinutes(Math.max(1, Math.ceil(result.workout.totalDuration / 60)));
-      setIntervals(result.workout.intervals as Interval[]);
-      setIntervalMode('advanced');
-    } catch (error) {
-      console.error('AI generation error:', error);
-    } finally {
-      setIsGenerating(false);
-    }
   };
 
   const handlePreset = (presetFn: () => ReturnType<typeof presets.quickHIIT>) => {
@@ -439,54 +416,26 @@ export default function GuestTimerPage() {
               <p className="text-on-surface-variant font-light tracking-wide">Create your custom interval workout with precision timing.</p>
             </header>
 
-            <section className="mb-10 p-6 rounded-lg bg-surface-container-high border border-secondary/20 relative overflow-hidden group">
-              <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                <span className="material-symbols-outlined text-6xl text-secondary">psychology</span>
+            <section className="mb-10 p-6 rounded-lg bg-surface-container-high border border-secondary/20">
+              <div className="flex items-center gap-2 mb-4">
+                <span className="material-symbols-outlined text-secondary text-sm">bolt</span>
+                <h3 className="text-xs font-black uppercase tracking-[0.2em] text-secondary">Quick Presets</h3>
               </div>
-              <div className="relative z-10">
-                <div className="flex items-center gap-2 mb-4">
-                  <span className="material-symbols-outlined text-secondary text-sm">auto_awesome</span>
-                  <h3 className="text-xs font-black uppercase tracking-[0.2em] text-secondary">AI Protocol Engine</h3>
-                </div>
-                <p className="text-on-surface-variant text-sm mb-6 max-w-md">
-                  Describe your workout and let AI create the intervals for you.
-                </p>
-                <div className="flex flex-col sm:flex-row gap-3">
-                  <div className="relative flex-grow">
-                    <input
-                      type="text"
-                      value={aiPrompt}
-                      onChange={(e) => setAiPrompt(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && handleAIGenerate()}
-                      placeholder="e.g., 60 min workout with 1 min work / 30 sec rest..."
-                      className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-full pl-6 pr-14 py-4 text-on-surface focus:ring-2 focus:ring-secondary/50 focus:border-secondary/50 transition-all placeholder:text-on-surface-variant/40 text-sm"
-                    />
-                  </div>
+              <div className="flex flex-wrap gap-2">
+                {[
+                  { label: 'Tabata', fn: presets.tabata },
+                  { label: 'Quick HIIT', fn: presets.quickHIIT },
+                  { label: 'Endurance', fn: presets.endurance30 },
+                  { label: 'Fat Burn', fn: presets.fatBurn },
+                ].map((preset) => (
                   <button
-                    onClick={handleAIGenerate}
-                    disabled={isGenerating || !aiPrompt.trim()}
-                    className="bg-secondary text-on-secondary-fixed font-bold px-8 py-4 rounded-full flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition-all text-sm whitespace-nowrap shadow-[0_0_20px_rgba(0,238,252,0.2)] disabled:opacity-50"
+                    key={preset.label}
+                    onClick={() => handlePreset(preset.fn)}
+                    className="px-4 py-2 rounded-full bg-surface-container text-on-surface-variant text-xs hover:bg-surface-container-highest transition-colors"
                   >
-                    <span>{isGenerating ? 'Generating...' : 'Generate'}</span>
-                    <span className="material-symbols-outlined text-sm">bolt</span>
+                    {preset.label}
                   </button>
-                </div>
-                <div className="flex flex-wrap gap-2 mt-4">
-                  {[
-                    { label: 'Tabata', fn: presets.tabata },
-                    { label: 'Quick HIIT', fn: presets.quickHIIT },
-                    { label: 'Endurance', fn: presets.endurance30 },
-                    { label: 'Fat Burn', fn: presets.fatBurn },
-                  ].map((preset) => (
-                    <button
-                      key={preset.label}
-                      onClick={() => handlePreset(preset.fn)}
-                      className="px-4 py-2 rounded-full bg-surface-container text-on-surface-variant text-xs hover:bg-surface-container-highest transition-colors"
-                    >
-                      {preset.label}
-                    </button>
-                  ))}
-                </div>
+                ))}
               </div>
             </section>
 

@@ -57,7 +57,6 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
   const [lastTransitionAt, setLastTransitionAt] = useState(0);
   
   const timerRef = useRef<NodeJS.Timeout | null>(null);
-  const lastTickRef = useRef<number>(0);
   
   // Track auth state for data store selection (can't use useAuth due to context hierarchy)
   const [isGuest, setIsGuest] = useState(true);

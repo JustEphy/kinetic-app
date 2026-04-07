@@ -41,29 +41,29 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="pb-16 px-6 max-w-7xl mx-auto">
+    <div className="pb-16 px-4 sm:px-6 max-w-7xl mx-auto">
       {/* Hero Header */}
-      <header className="mb-12">
+      <header className="mb-8 md:mb-12">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
           <div>
             <p className="text-secondary font-label uppercase tracking-widest text-sm mb-2">
               Configuration
             </p>
-            <h1 className="text-5xl md:text-7xl font-black tracking-tighter leading-none">
+            <h1 className="text-4xl md:text-7xl font-black tracking-tighter leading-none">
               SETTINGS
             </h1>
           </div>
         </div>
       </header>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-8">
         {/* Theme Selection - Bento Style */}
         <section className="lg:col-span-8">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-2xl font-bold tracking-tight">Interface Visuals</h2>
             <span className="text-secondary text-sm font-medium tracking-widest uppercase">Select Engine Skin</span>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
             {themeList.map(theme => (
               <button
                 key={theme.id}
@@ -73,6 +73,7 @@ export default function SettingsPage() {
                     : 'bg-surface-container hover:bg-surface-container-high'
                 }`}
                 onClick={() => handleThemeChange(theme.id)}
+                aria-label={`Select ${theme.name} theme`}
               >
                 {/* Preview gradient */}
                 <div className="aspect-video rounded-md overflow-hidden relative">
@@ -119,7 +120,7 @@ export default function SettingsPage() {
 
         {/* Performance Prefs */}
         <aside className="lg:col-span-4 space-y-8">
-          <div className="bg-surface-container-low rounded-lg p-8 space-y-8 border-r-4 border-primary">
+          <div className="bg-surface-container-low rounded-lg p-5 md:p-8 space-y-6 md:space-y-8 border-r-4 border-primary">
             <h2 className="text-xl font-bold tracking-tight">Performance Prefs</h2>
             <div className="space-y-6">
               {/* Audio Cues */}
@@ -138,6 +139,9 @@ export default function SettingsPage() {
                     localSettings.soundEnabled ? 'bg-primary' : 'bg-surface-container-highest'
                   }`}
                   onClick={() => handleToggle('soundEnabled')}
+                  role="switch"
+                  aria-checked={localSettings.soundEnabled}
+                  aria-label="Toggle audio cues"
                 >
                   <span
                     className={`absolute top-1 h-4 w-4 rounded-full bg-white transition-all duration-200 ${
@@ -163,6 +167,9 @@ export default function SettingsPage() {
                     localSettings.hapticEnabled ? 'bg-primary' : 'bg-surface-container-highest'
                   }`}
                   onClick={() => handleToggle('hapticEnabled')}
+                  role="switch"
+                  aria-checked={localSettings.hapticEnabled}
+                  aria-label="Toggle haptic feedback"
                 >
                   <span
                     className={`absolute top-1 h-4 w-4 rounded-full bg-white transition-all duration-200 ${
@@ -188,6 +195,9 @@ export default function SettingsPage() {
                     localSettings.keepScreenOn ? 'bg-primary' : 'bg-surface-container-highest'
                   }`}
                   onClick={() => handleToggle('keepScreenOn')}
+                  role="switch"
+                  aria-checked={localSettings.keepScreenOn}
+                  aria-label="Toggle screen always on"
                 >
                   <span
                     className={`absolute top-1 h-4 w-4 rounded-full bg-white transition-all duration-200 ${

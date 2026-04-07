@@ -40,6 +40,7 @@ export default function ProfilePage() {
   const [isEditingStats, setIsEditingStats] = useState(false);
   const [isAddingRecord, setIsAddingRecord] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
   
   // Edit form states
   const [editName, setEditName] = useState(user?.name || '');
@@ -608,6 +609,36 @@ export default function ProfilePage() {
                   }}
                 >
                   Export Data
+                </button>
+                <button
+                  className="bg-error/20 hover:bg-error/30 text-error px-8 py-4 rounded-lg font-bold uppercase tracking-widest text-sm transition-colors"
+                  disabled={isDeletingAccount}
+                  onClick={async () => {
+                    if (isDeletingAccount) return;
+
+                    const confirmed = window.confirm(
+                      'This will permanently delete your account and all associated data. This action cannot be undone. Continue?'
+                    );
+                    if (!confirmed) return;
+
+                    setIsDeletingAccount(true);
+                    try {
+                      const response = await fetch('/api/account/delete', { method: 'DELETE' });
+                      if (!response.ok) {
+                        throw new Error('Failed to delete account');
+                      }
+                      router.replace('/');
+                    } catch (error) {
+                      console.error('Delete account failed:', error);
+                      window.alert(
+                        'Unable to delete your account right now. Please try again or contact support.'
+                      );
+                    } finally {
+                      setIsDeletingAccount(false);
+                    }
+                  }}
+                >
+                  {isDeletingAccount ? 'Deleting Account...' : 'Delete My Account & Data'}
                 </button>
                 <button
                   className="bg-error/10 hover:bg-error/20 text-error px-8 py-4 rounded-lg font-bold uppercase tracking-widest text-sm transition-colors"

@@ -19,7 +19,6 @@ export default function TimerPage() {
     isRunning,
     isPaused,
     progress,
-    intervalProgress,
     intervalRemainingTime,
     elapsedTime,
     pauseWorkout,
@@ -29,8 +28,6 @@ export default function TimerPage() {
     skipInterval,
     setSoundEnabled,
     setHapticEnabled,
-    soundEnabled,
-    hapticEnabled,
     lastTransitionAt,
     startWorkout,
   } = useWorkout();
