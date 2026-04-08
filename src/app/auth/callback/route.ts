@@ -2,10 +2,17 @@ import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 
+function sanitizeNextPath(next: string | null): string {
+  if (!next) return '/';
+  if (!next.startsWith('/')) return '/';
+  if (next.startsWith('//')) return '/';
+  return next;
+}
+
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get('code');
-  const next = searchParams.get('next') ?? '/';
+  const next = sanitizeNextPath(searchParams.get('next'));
 
   if (code) {
     const cookieStore = await cookies();

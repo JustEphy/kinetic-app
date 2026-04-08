@@ -8,6 +8,11 @@ import GoogleProvider from 'next-auth/providers/google';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import { generateId } from './db';
 
+const authSecret = process.env.NEXTAUTH_SECRET;
+if (!authSecret && process.env.NODE_ENV === 'production') {
+  throw new Error('NEXTAUTH_SECRET must be set in production');
+}
+
 // Extend NextAuth types
 declare module 'next-auth' {
   interface User {
@@ -86,7 +91,7 @@ export const authOptions: NextAuthOptions = {
     maxAge: 30 * 24 * 60 * 60, // 30 days
   },
   
-  secret: process.env.NEXTAUTH_SECRET || 'kinetic-secret-key-change-in-production',
+  secret: authSecret || 'kinetic-dev-secret-local-only',
 };
 
 export default NextAuth(authOptions);

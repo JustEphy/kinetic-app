@@ -6,6 +6,18 @@ type RefreshResult = {
   embeddings: unknown;
 };
 
+function resolveInternalOrigin(requestUrl: string): string {
+  const configured =
+    process.env.NEXTAUTH_URL?.trim() ||
+    process.env.NEXT_PUBLIC_APP_URL?.trim();
+
+  if (configured) {
+    return new URL(configured).origin;
+  }
+
+  return new URL(requestUrl).origin;
+}
+
 async function postJson(url: string, secret: string): Promise<unknown> {
   const response = await fetch(url, {
     method: 'POST',
@@ -34,7 +46,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Missing Supabase service credentials' }, { status: 503 });
     }
 
-    const host = req.headers.get('origin') || new URL(req.url).origin;
+    const host = resolveInternalOrigin(req.url);
     const syncResult = await postJson(`${host}/api/ai/knowledge/sync-wger`, ingestSecret);
     const embeddingResult = await postJson(`${host}/api/ai/knowledge/backfill-embeddings`, ingestSecret);
 
