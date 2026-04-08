@@ -6,6 +6,7 @@
 
 import { Workout, WorkoutInterval, AIWorkoutRequest, AIWorkoutResponse } from '@/types';
 import { generateId } from './db';
+import { createClient } from '@supabase/supabase-js';
 
 // Common workout patterns
 const PATTERNS = {
@@ -30,6 +31,69 @@ function inferExerciseNames(prompt: string): string[] {
   const matched = EXERCISE_NAME_PATTERNS.find(({ regex }) => regex.test(prompt));
   if (matched) return matched.names;
   return ['Warm Up', 'Work Phase', 'Tempo Push', 'Power Burst', 'Endurance Block', 'Final Push'];
+}
+
+async function fetchKnowledgeExerciseNames(prompt: string): Promise<string[]> {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceRole = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!supabaseUrl || !serviceRole) return [];
+
+  const supabase = createClient(supabaseUrl, serviceRole, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+
+  const tokens = prompt
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .filter((t) => t.length > 2)
+    .slice(0, 10);
+
+  if (tokens.length === 0) return [];
+
+  const orFilter = tokens
+    .map((token) => `name.ilike.%${token}%`)
+    .join(',');
+
+  const { data, error } = await supabase
+    .from('ai_knowledge_exercises')
+    .select('name, category')
+    .or(orFilter)
+    .limit(20);
+
+  if (error || !data) return [];
+
+  const prioritized = [...data]
+    .sort((a, b) => {
+      const aScore = scoreExerciseName(a.name, tokens) + (a.category?.toLowerCase().includes('cardio') ? 0.1 : 0);
+      const bScore = scoreExerciseName(b.name, tokens) + (b.category?.toLowerCase().includes('cardio') ? 0.1 : 0);
+      return bScore - aScore;
+    })
+    .map((row) => row.name?.trim())
+    .filter((name): name is string => !!name && name.length > 2);
+
+  return uniqueStrings(prioritized).slice(0, 14);
+}
+
+function scoreExerciseName(name: string, tokens: string[]): number {
+  const lower = name.toLowerCase();
+  let score = 0;
+  for (const token of tokens) {
+    if (lower.includes(token)) score += 2;
+  }
+  return score;
+}
+
+function uniqueStrings(values: string[]): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const value of values) {
+    const key = value.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push(value);
+  }
+  return result;
 }
 
 function normalizeDurations(workDuration: number, restDuration: number): { work: number; rest: number } {
@@ -239,10 +303,13 @@ function generateWorkout(
   restDuration: number,
   intensity: number = 75,
   name?: string,
-  prompt?: string
+  prompt?: string,
+  customExerciseNames?: string[]
 ): Workout {
   const intervals: WorkoutInterval[] = [];
-  const exerciseNames = inferExerciseNames(prompt ?? '');
+  const fallbackNames = inferExerciseNames(prompt ?? '');
+  const knowledgeNames = uniqueStrings(customExerciseNames ?? []);
+  const exerciseNames = knowledgeNames.length > 0 ? knowledgeNames : fallbackNames;
   let workBlockIndex = 1; // reserve index 0 (Warm Up) for warmup block label only
   let currentTime = 0;
   let isWork = true;
@@ -283,7 +350,7 @@ function generateWorkout(
     }
     
     if (isWork) {
-      const workLabel = exerciseNames[Math.min(workBlockIndex, exerciseNames.length - 1)];
+      const workLabel = resolveWorkLabel(exerciseNames, workBlockIndex);
       workBlockIndex++;
       intervals.push({
         id: generateId(),
@@ -297,7 +364,7 @@ function generateWorkout(
         id: generateId(),
         type: 'rest',
         duration,
-        name: 'Recovery',
+        name: resolveRestLabel(workBlockIndex),
         description: 'Controlled breathing and active recovery',
       });
     }
@@ -316,7 +383,7 @@ function generateWorkout(
 
       const remainingBeforeCooldown = Math.max(0, mainWorkoutEnd - currentTime);
       if (remainingBeforeCooldown > 10) {
-        const workLabel = exerciseNames[Math.min(workBlockIndex, exerciseNames.length - 1)];
+        const workLabel = resolveWorkLabel(exerciseNames, workBlockIndex);
         intervals.push({
           id: generateId(),
           type: 'work',
@@ -358,6 +425,7 @@ function generateWorkout(
 // Main AI generator function
 export async function generateWorkoutFromPrompt(request: AIWorkoutRequest): Promise<AIWorkoutResponse> {
   const { prompt } = request;
+  const knowledgeExerciseNames = await fetchKnowledgeExerciseNames(prompt);
   
   // Try Groq API first for enhanced AI
   const groqResult = await callGroqAPI(prompt);
@@ -418,7 +486,10 @@ export async function generateWorkoutFromPrompt(request: AIWorkoutRequest): Prom
     restDuration,
     intensity,
     workoutName,
-    prompt
+    prompt,
+    request.exerciseNames && request.exerciseNames.length > 0
+      ? request.exerciseNames
+      : knowledgeExerciseNames
   );
   
   // Generate response message
@@ -433,9 +504,86 @@ export async function generateWorkoutFromPrompt(request: AIWorkoutRequest): Prom
 
 // Quick preset generators
 export const presets = {
-  quickHIIT: () => generateWorkout(1200, 45, 15, 90, 'Quick HIIT 20min'),
-  tabata: () => generateWorkout(240, 20, 10, 95, 'Classic Tabata'),
-  endurance30: () => generateWorkout(1800, 180, 60, 65, 'Endurance 30min'),
-  circuit45: () => generateWorkout(2700, 60, 30, 75, 'Circuit Training 45min'),
-  fatBurn: () => generateWorkout(1500, 40, 20, 85, 'Fat Burn 25min'),
+  beginnerFullBody: () =>
+    generateWorkout(1800, 60, 45, 60, 'Beginner Full Body 30min', 'beginner full body', [
+      'Bodyweight Squats',
+      'Knee Push-Ups',
+      'Glute Bridge',
+      'Bird Dog',
+      'Step-Back Lunges',
+      'Dead Bug',
+      'Standing March',
+      'Forearm Plank',
+    ]),
+  fullBodyStrength: () =>
+    generateWorkout(2400, 75, 30, 72, 'Full Body Strength 40min', 'full body strength', [
+      'Goblet Squats',
+      'Push-Ups',
+      'Bent-Over Rows',
+      'Reverse Lunges',
+      'Dumbbell Shoulder Press',
+      'Romanian Deadlift',
+      'Mountain Climbers',
+      'Plank Shoulder Taps',
+    ]),
+  upperBodyFocus: () =>
+    generateWorkout(1800, 70, 35, 75, 'Upper Body Focus 30min', 'upper body', [
+      'Push-Ups',
+      'Dumbbell Shoulder Press',
+      'Bent-Over Rows',
+      'Tricep Dips',
+      'Bicep Curls',
+      'Lateral Raises',
+      'Plank Up-Downs',
+    ]),
+  lowerBodyFocus: () =>
+    generateWorkout(1800, 70, 35, 75, 'Lower Body Focus 30min', 'lower body', [
+      'Bodyweight Squats',
+      'Walking Lunges',
+      'Romanian Deadlift',
+      'Glute Bridges',
+      'Calf Raises',
+      'Split Squats',
+      'Wall Sit',
+    ]),
+  yogaSunriseFlow: () =>
+    generateWorkout(2700, 75, 20, 45, 'Yoga Sunrise Flow 45min', 'yoga sunrise salute flow', [
+      'Centering Breath',
+      'Mountain Pose',
+      'Half Sun Salutation',
+      'Sun Salutation A',
+      'Sun Salutation B',
+      'Warrior I',
+      'Warrior II',
+      'Triangle Pose',
+      'Tree Pose',
+      'Seated Forward Fold',
+      'Bridge Pose',
+      'Supine Twist',
+      'Savasana',
+    ]),
 };
+
+export const practicalPresetOptions: Array<{
+  label: string;
+  key: keyof typeof presets;
+}> = [
+  { label: 'Beginner', key: 'beginnerFullBody' },
+  { label: 'Full Body', key: 'fullBodyStrength' },
+  { label: 'Upper Body', key: 'upperBodyFocus' },
+  { label: 'Lower Body', key: 'lowerBodyFocus' },
+  { label: 'Yoga Flow', key: 'yogaSunriseFlow' },
+];
+
+function resolveWorkLabel(exerciseNames: string[], workBlockIndex: number): string {
+  if (exerciseNames.length === 0) return `Work Block ${workBlockIndex}`;
+  if (workBlockIndex < exerciseNames.length) return exerciseNames[workBlockIndex];
+  const cycleIndex = (workBlockIndex - 1) % exerciseNames.length;
+  const label = exerciseNames[cycleIndex];
+  const round = Math.floor((workBlockIndex - 1) / exerciseNames.length) + 1;
+  return `${label} (Round ${round})`;
+}
+
+function resolveRestLabel(workBlockIndex: number): string {
+  return `Recovery ${Math.max(1, workBlockIndex - 1)}`;
+}

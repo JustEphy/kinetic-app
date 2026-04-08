@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useWorkout } from '@/contexts/WorkoutContext';
 import { useAuth } from '@/contexts/AuthContext';
-import { presets } from '@/lib/ai';
+import { practicalPresetOptions, presets } from '@/lib/ai';
 import { WorkoutInterval, WorkoutPreset } from '@/types';
 import { generateId } from '@/lib/db';
 import PresetsModal from '@/components/PresetsModal';
@@ -134,7 +134,7 @@ export default function WorkoutsPage() {
     router.push('/workouts/timer');
   };
 
-  const handlePreset = (presetFn: () => ReturnType<typeof presets.quickHIIT>) => {
+  const handlePreset = (presetFn: () => ReturnType<(typeof presets)[keyof typeof presets]>) => {
     const presetWorkout = presetFn();
     setWorkout(presetWorkout);
     setWorkoutName(presetWorkout.name);
@@ -280,15 +280,10 @@ export default function WorkoutsPage() {
           </h3>
         </div>
         <div className="flex flex-wrap gap-2">
-          {[
-            { label: 'Tabata', fn: presets.tabata },
-            { label: 'Quick HIIT', fn: presets.quickHIIT },
-            { label: 'Endurance', fn: presets.endurance30 },
-            { label: 'Fat Burn', fn: presets.fatBurn },
-          ].map(preset => (
+          {practicalPresetOptions.map(preset => (
             <button
               key={preset.label}
-              onClick={() => handlePreset(preset.fn)}
+              onClick={() => handlePreset(presets[preset.key])}
               className="px-4 py-2 rounded-full bg-surface-container text-on-surface-variant text-xs hover:bg-surface-container-highest transition-colors"
             >
               {preset.label}
@@ -775,3 +770,4 @@ function formatDurationWords(totalSeconds: number): string {
   const secs = totalSeconds % 60;
   return `${mins}min ${secs}sec`;
 }
+

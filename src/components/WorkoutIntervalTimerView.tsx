@@ -93,11 +93,20 @@ export default function WorkoutIntervalTimerView({
             Interval Remaining
           </span>
           <h2 className={`font-black text-3xl italic tracking-tighter uppercase ${isWorkInterval ? 'text-primary' : 'text-secondary'}`}>
-            {currentInterval.type === 'work' && 'High Intensity'}
-            {currentInterval.type === 'rest' && 'Active Recovery'}
-            {currentInterval.type === 'warmup' && 'Warm Up'}
-            {currentInterval.type === 'cooldown' && 'Cool Down'}
+            {currentInterval.name || (
+              <>
+                {currentInterval.type === 'work' && 'High Intensity'}
+                {currentInterval.type === 'rest' && 'Active Recovery'}
+                {currentInterval.type === 'warmup' && 'Warm Up'}
+                {currentInterval.type === 'cooldown' && 'Cool Down'}
+              </>
+            )}
           </h2>
+          {currentInterval.description && (
+            <p className="text-on-surface-variant text-sm mt-2 text-center max-w-sm">
+              {currentInterval.description}
+            </p>
+          )}
         </div>
 
         <div className="relative flex items-center justify-center">

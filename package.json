@@ -6,7 +6,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "sync:wger": "node ./scripts/trigger-wger-sync.mjs",
+    "seed:ai-templates": "node ./scripts/seed-ai-templates.mjs",
+    "backfill:embeddings": "node ./scripts/backfill-embeddings.mjs"
   },
   "dependencies": {
     "@auth/core": "^0.34.3",

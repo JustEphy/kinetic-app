@@ -2,12 +2,12 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { audioManager, haptics, notify } from '@/lib/audio';
 import WorkoutIntervalTimerView from '@/components/WorkoutIntervalTimerView';
 import { WorkoutInterval } from '@/types';
 import { generateId } from '@/lib/db';
-import { presets } from '@/lib/ai';
+import { practicalPresetOptions, presets } from '@/lib/ai';
 
 type GuestMode = 'normal' | 'interval';
 type TimerMode = 'setup' | 'countdown' | 'stopwatch';
@@ -19,7 +19,6 @@ const GUEST_AI_WORKOUT_KEY = 'kinetic_guest_ai_workout';
 
 export default function GuestTimerPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const [guestMode, setGuestMode] = useState<GuestMode>('normal');
 
   // Normal timer state
@@ -56,10 +55,12 @@ export default function GuestTimerPage() {
   }, []);
 
   useEffect(() => {
-    if (searchParams.get('tab') === 'interval') {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('tab') === 'interval') {
       setGuestMode('interval');
     }
-  }, [searchParams]);
+  }, []);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -103,7 +104,7 @@ export default function GuestTimerPage() {
     } finally {
       sessionStorage.removeItem(GUEST_AI_WORKOUT_KEY);
     }
-  }, [searchParams]);
+  }, []);
 
   const totalSetTime = hours * 3600 + minutes * 60 + seconds;
 
@@ -204,7 +205,7 @@ export default function GuestTimerPage() {
     setIntervals(intervals.map((i) => (i.id === id ? { ...i, ...updates } : i)));
   };
 
-  const handlePreset = (presetFn: () => ReturnType<typeof presets.quickHIIT>) => {
+  const handlePreset = (presetFn: () => ReturnType<(typeof presets)[keyof typeof presets]>) => {
     const presetWorkout = presetFn();
     setWorkoutName(presetWorkout.name);
     setIntervals(presetWorkout.intervals as Interval[]);
@@ -474,15 +475,10 @@ export default function GuestTimerPage() {
                 <h3 className="text-xs font-black uppercase tracking-[0.2em] text-secondary">Quick Presets</h3>
               </div>
               <div className="flex flex-wrap gap-2">
-                {[
-                  { label: 'Tabata', fn: presets.tabata },
-                  { label: 'Quick HIIT', fn: presets.quickHIIT },
-                  { label: 'Endurance', fn: presets.endurance30 },
-                  { label: 'Fat Burn', fn: presets.fatBurn },
-                ].map((preset) => (
+                {practicalPresetOptions.map((preset) => (
                   <button
                     key={preset.label}
-                    onClick={() => handlePreset(preset.fn)}
+                    onClick={() => handlePreset(presets[preset.key])}
                     className="px-4 py-2 rounded-full bg-surface-container text-on-surface-variant text-xs hover:bg-surface-container-highest transition-colors"
                   >
                     {preset.label}
@@ -758,3 +754,4 @@ function NumberInput({
     </div>
   );
 }
+

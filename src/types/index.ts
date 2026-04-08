@@ -103,6 +103,7 @@ export interface AIWorkoutRequest {
   totalDuration?: number;
   workInterval?: number;
   restInterval?: number;
+  exerciseNames?: string[];
 }
 
 export interface AIWorkoutResponse {

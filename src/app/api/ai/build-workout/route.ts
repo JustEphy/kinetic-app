@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { generateWorkoutFromPrompt } from '@/lib/ai';
+import { saveLearningSignal } from '@/lib/ai-rag';
 
 type RateRecord = { count: number; resetTime: number };
 
@@ -73,6 +74,9 @@ export async function POST(req: Request) {
 
     const body = await req.json().catch(() => null);
     const prompt = body?.prompt;
+    const exerciseNames = Array.isArray(body?.exerciseNames)
+      ? body.exerciseNames.filter((value: unknown): value is string => typeof value === 'string').slice(0, 30)
+      : [];
 
     if (!prompt || typeof prompt !== 'string') {
       return NextResponse.json({ error: 'Missing or invalid prompt' }, { status: 400 });
@@ -83,7 +87,23 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Prompt too short' }, { status: 400 });
     }
 
-    const result = await generateWorkoutFromPrompt({ prompt: sanitizedPrompt });
+    const result = await generateWorkoutFromPrompt({
+      prompt: sanitizedPrompt,
+      exerciseNames,
+    });
+
+    try {
+      await saveLearningSignal({
+        supabase,
+        userId: user?.id ?? null,
+        prompt: sanitizedPrompt,
+        accepted: true,
+        generatedWorkout: result.workout,
+        source: 'build-workout',
+      });
+    } catch (signalError) {
+      console.warn('[BUILD WORKOUT API] learning signal failed:', signalError);
+    }
 
     return NextResponse.json(
       { workout: result.workout, message: result.message },

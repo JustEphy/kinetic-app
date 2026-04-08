@@ -3,6 +3,7 @@
 
 -- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+CREATE EXTENSION IF NOT EXISTS vector;
 
 -- Profiles table (extends Supabase auth.users)
 CREATE TABLE IF NOT EXISTS profiles (
@@ -111,12 +112,71 @@ CREATE TABLE IF NOT EXISTS workout_presets (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- AI Knowledge (WGER + custom corpus)
+CREATE TABLE IF NOT EXISTS ai_knowledge_exercises (
+  id TEXT PRIMARY KEY,
+  source TEXT NOT NULL DEFAULT 'wger',
+  name TEXT NOT NULL,
+  description TEXT,
+  category TEXT,
+  equipment TEXT[] DEFAULT '{}',
+  primary_muscles TEXT[] DEFAULT '{}',
+  secondary_muscles TEXT[] DEFAULT '{}',
+  metadata JSONB DEFAULT '{}',
+  embedding VECTOR(1536),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS ai_workout_templates (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  goal TEXT,
+  split TEXT,
+  difficulty TEXT,
+  notes TEXT,
+  intervals JSONB NOT NULL DEFAULT '[]',
+  embedding VECTOR(1536),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS ai_feedback_signals (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+  source TEXT NOT NULL,
+  prompt TEXT NOT NULL,
+  accepted BOOLEAN NOT NULL DEFAULT false,
+  generated_workout JSONB,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS ai_generation_logs (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+  route TEXT NOT NULL,
+  prompt TEXT,
+  rag_context TEXT,
+  model TEXT,
+  response_summary TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- Create indexes for better query performance
 CREATE INDEX IF NOT EXISTS idx_workouts_user_id ON workouts(user_id);
 CREATE INDEX IF NOT EXISTS idx_workout_sessions_user_id ON workout_sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_personal_records_user_id ON personal_records(user_id);
 CREATE INDEX IF NOT EXISTS idx_recent_activity_user_id ON recent_activity(user_id);
 CREATE INDEX IF NOT EXISTS idx_workout_presets_user_id ON workout_presets(user_id);
+CREATE INDEX IF NOT EXISTS idx_ai_knowledge_name ON ai_knowledge_exercises(name);
+CREATE INDEX IF NOT EXISTS idx_ai_templates_user_id ON ai_workout_templates(user_id);
+CREATE INDEX IF NOT EXISTS idx_ai_feedback_user_id ON ai_feedback_signals(user_id);
+CREATE INDEX IF NOT EXISTS idx_ai_generation_logs_user_id ON ai_generation_logs(user_id);
+
+-- Vector indexes (optional on free tier; keep lists small)
+CREATE INDEX IF NOT EXISTS idx_ai_knowledge_embedding ON ai_knowledge_exercises USING ivfflat (embedding vector_cosine_ops) WITH (lists = 50);
+CREATE INDEX IF NOT EXISTS idx_ai_templates_embedding ON ai_workout_templates USING ivfflat (embedding vector_cosine_ops) WITH (lists = 50);
 
 -- Enable Row Level Security (RLS)
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
@@ -127,6 +187,10 @@ ALTER TABLE workout_sessions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE personal_records ENABLE ROW LEVEL SECURITY;
 ALTER TABLE recent_activity ENABLE ROW LEVEL SECURITY;
 ALTER TABLE workout_presets ENABLE ROW LEVEL SECURITY;
+ALTER TABLE ai_knowledge_exercises ENABLE ROW LEVEL SECURITY;
+ALTER TABLE ai_workout_templates ENABLE ROW LEVEL SECURITY;
+ALTER TABLE ai_feedback_signals ENABLE ROW LEVEL SECURITY;
+ALTER TABLE ai_generation_logs ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policies: Users can only access their own data
 
@@ -197,6 +261,31 @@ CREATE POLICY "Users can update own presets" ON workout_presets
   FOR UPDATE USING (auth.uid() = user_id);
 CREATE POLICY "Users can delete own presets" ON workout_presets
   FOR DELETE USING (auth.uid() = user_id);
+
+-- AI knowledge is readable for everyone (app retrieval); service role writes.
+CREATE POLICY "Everyone can read AI knowledge" ON ai_knowledge_exercises
+  FOR SELECT USING (true);
+
+-- Template policies
+CREATE POLICY "Users can view own templates" ON ai_workout_templates
+  FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can insert own templates" ON ai_workout_templates
+  FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can update own templates" ON ai_workout_templates
+  FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY "Users can delete own templates" ON ai_workout_templates
+  FOR DELETE USING (auth.uid() = user_id);
+
+-- AI feedback + generation log policies
+CREATE POLICY "Users can view own feedback signals" ON ai_feedback_signals
+  FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can insert own feedback signals" ON ai_feedback_signals
+  FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can view own generation logs" ON ai_generation_logs
+  FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can insert own generation logs" ON ai_generation_logs
+  FOR INSERT WITH CHECK (auth.uid() = user_id);
 
 -- Function to handle new user signups
 CREATE OR REPLACE FUNCTION public.handle_new_user()

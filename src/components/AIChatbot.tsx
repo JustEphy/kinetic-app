@@ -15,6 +15,7 @@ type ChatMessage = {
   workoutData?: {
     prompt: string;
     canGenerate: boolean;
+    exerciseNames?: string[];
   };
 };
 
@@ -23,6 +24,7 @@ type ChatApiResponse = {
   role: 'assistant';
   shouldOfferBuild?: boolean;
   buildPrompt?: string | null;
+  exerciseNames?: string[];
 };
 
 const CHAT_SESSION_KEY = 'kinetic_ai_chat_session';
@@ -79,10 +81,14 @@ export default function AIChatbot({ onClose }: { onClose: () => void }) {
   const buildWorkout = async (prompt: string, messageId: string) => {
     setBuildingWorkout(messageId);
     try {
+      const sourceMessage = messages.find((m) => m.id === messageId);
       const response = await fetch('/api/ai/build-workout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt }),
+        body: JSON.stringify({
+          prompt,
+          exerciseNames: sourceMessage?.workoutData?.exerciseNames ?? [],
+        }),
       });
 
       if (!response.ok) {
@@ -171,6 +177,7 @@ export default function AIChatbot({ onClose }: { onClose: () => void }) {
         workoutData: data.shouldOfferBuild ? {
           prompt: data.buildPrompt || userMessage.content,
           canGenerate: true,
+          exerciseNames: data.exerciseNames ?? [],
         } : undefined,
       };
 

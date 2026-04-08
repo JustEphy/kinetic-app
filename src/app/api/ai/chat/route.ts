@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
+import { getChatRagContext } from '@/lib/ai-rag';
 
 type Message = {
   role: 'user' | 'assistant' | 'system';
@@ -28,8 +29,56 @@ function shouldOfferWorkoutBuild(message: string): boolean {
     /\b(create|build|make|design|generate|plan)\b.{0,30}\b(workout|routine|session)\b/,
     /\b(workout|routine|session)\b.{0,30}\b(for me|please|for)\b/,
     /\bi need\b.{0,30}\b(workout|routine|plan)\b/,
+    /\b(give me|write me|draft)\b.{0,30}\b(workout|routine|training plan)\b/,
   ];
   return patterns.some((pattern) => pattern.test(text));
+}
+
+function responseLooksLikeWorkoutPlan(message: string): boolean {
+  const text = message.toLowerCase();
+  return (
+    /\b\d{1,2}:\d{2}\b/.test(text) ||
+    /\b(sets?|reps?|interval|rest|cool-?down|warm-?up)\b/.test(text) ||
+    /\b(workout plan|training plan|routine)\b/.test(text)
+  );
+}
+
+function extractExerciseNamesFromPlan(message: string): string[] {
+  const generic = new Set([
+    'warm up', 'cool down', 'recovery', 'rest', 'work phase', 'final push', 'tempo push', 'power burst', 'endurance block',
+    'repeat the circuit', 'active recovery', 'rest phase',
+  ]);
+  const names: string[] = [];
+  const lines = message.split(/\r?\n/);
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+
+    const boldMatch = trimmed.match(/\*\*[^:]*:\s*([^*]+)\*\*/i);
+    const bulletMatch = trimmed.match(/^[-•]\s*([^:]+):\s*(.+)$/i);
+    const plainExerciseMatch = trimmed.match(/^[-•]\s*([A-Za-z][A-Za-z0-9'\-\s]{2,40})\s*$/);
+
+    const candidate = boldMatch?.[1] || bulletMatch?.[1] || plainExerciseMatch?.[1] || null;
+    if (!candidate) continue;
+
+    const normalized = candidate.replace(/\s+/g, ' ').trim();
+    const lower = normalized.toLowerCase();
+    if (lower.length < 3 || generic.has(lower)) continue;
+    if (/\b(min|sec|seconds?|minutes?)\b/.test(lower)) continue;
+    if (/^\d/.test(lower)) continue;
+    names.push(normalized);
+  }
+
+  const deduped: string[] = [];
+  const seen = new Set<string>();
+  for (const name of names) {
+    const key = name.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    deduped.push(name);
+  }
+  return deduped.slice(0, 20);
 }
 
 function checkRateLimit(identifier: string): { allowed: boolean; remaining: number } {
@@ -103,11 +152,18 @@ export async function POST(req: Request) {
     }
 
     const workoutBuildRequested = !!userMessage && shouldOfferWorkoutBuild(userMessage);
+    const ragContext = await getChatRagContext({
+      supabase,
+      userId: user?.id ?? null,
+      query: userMessage || '',
+    });
+
     const systemPrompt = `You are KINETIC AI, a fitness assistant specialized in workouts and interval training.
 Keep responses concise (2-4 sentences), energetic, and workout-focused.
 If user asks for non-fitness topics, redirect to fitness help.
 If the user asks to create/build a workout, provide a practical workout suggestion they can run immediately.
-Include emojis sparingly: 💪 🔥 ⚡`;
+Include emojis sparingly: 💪 🔥 ⚡
+${ragContext ? `\n\nUse this retrieval context when helpful:\n${ragContext}` : ''}`;
 
     const conversationMessages: Message[] = [{ role: 'system', content: systemPrompt }];
     
@@ -149,15 +205,20 @@ Include emojis sparingly: 💪 🔥 ⚡`;
     }
 
     let finalMessage = content.trim();
-    if (workoutBuildRequested && !/build this in the app\?/i.test(finalMessage)) {
+    const planDetected = responseLooksLikeWorkoutPlan(finalMessage);
+    const shouldOfferBuild = workoutBuildRequested || planDetected;
+    const extractedExerciseNames = planDetected ? extractExerciseNamesFromPlan(finalMessage) : [];
+
+    if (shouldOfferBuild && !/build this in the app\?/i.test(finalMessage)) {
       finalMessage = `${finalMessage}\n\nWant me to build this in the app?`;
     }
 
     return NextResponse.json({
       message: finalMessage,
       role: 'assistant',
-      shouldOfferBuild: workoutBuildRequested,
-      buildPrompt: workoutBuildRequested ? userMessage : null,
+      shouldOfferBuild,
+      buildPrompt: shouldOfferBuild ? userMessage : null,
+      exerciseNames: extractedExerciseNames,
     });
   } catch (error) {
     console.error('[GROQ CHAT] Error:', error);
